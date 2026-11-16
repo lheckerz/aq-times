@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The AQ Times</title>
+<meta name="description" content="Your whole AQ day, on one page: AQ Smash announcements, badminton and Johor news, live.">
+<meta name="theme-color" content="#12263F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AQ Times">
+<meta property="og:title" content="The AQ Times">
+<meta property="og:description" content="Announcements, badminton and Johor news for the AQ sports community.">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,600;0,700;0,800;0,900;1,800;1,900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="app">
+  <a id="adminBar" class="adminbar" href="/admin" hidden aria-label="Open the AQ Times admin dashboard">
+    <span class="pill-admin">ADMIN</span><span class="grow">Signed in as admin</span><b>Dashboard ›</b>
+  </a>
+  <main id="scroll" class="scroll">
+    <header class="mast">
+      <div class="mast-top"><span id="printedFor">FOR THE AQ SPORTS COMMUNITY</span><span class="live"><span class="dot"></span><span id="dateLong"></span></span></div>
+      <h1 class="wordmark" aria-label="The AQ Times"><span class="the">THE</span><span class="aq">AQ</span><span class="slice">TIMES</span></h1>
+      <div class="tagline">Your whole AQ day, on one page. Read it with your kopi.</div>
+      <div class="rule"></div>
+      <div class="glance"><span>TODAY AT A GLANCE</span><span class="r" id="glance">LOADING…</span></div>
+    </header>
+    <div id="view" class="pad"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+  </main>
+  <div class="band" role="marquee" aria-live="off"><b>FROM AQ SMASH</b><span id="ticker" class="fade"></span></div>
+  <nav class="tabs" id="tabs" aria-label="Main" style="--n:4"></nav>
+</div>
+<script type="module" src="/assets/member.js"></script>
+</body>
+</html>
