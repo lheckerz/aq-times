@@ -289,7 +289,7 @@ function manageView() {
 
 function storyFields(d, prefix) {
   return `<label class="field">Headline<textarea data-bind="${prefix}.title" rows="2" maxlength="200">${esc(d.title)}</textarea></label>
-    <label class="field">Summary<textarea data-bind="${prefix}.summary" rows="7" maxlength="2400">${esc(d.summary)}</textarea><span class="hint">Shown when members tap the headline. First paragraph is the summary; start a line with • for each key point.</span></label>
+    <label class="field">Summary<textarea data-bind="${prefix}.summary" rows="7" maxlength="800">${esc(d.summary)}</textarea><span class="hint">Shown when members tap the headline. First paragraph is the summary; start a line with • for each key point.</span></label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <label class="field">Show to${sel(prefix + '.show_to', d.show_to, SHOW)}</label>
       <label class="field">Section${sel(prefix + '.cat', d.cat, [['bad', 'Badminton'], ['pickleball', 'Pickleball'], ['tennis', 'Tennis'], ['aq', 'AQ Smash'], ['opp', 'Opportunity']])}</label></div>

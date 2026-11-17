@@ -141,6 +141,7 @@ async function hide(ids: string[]) {
 }
 
 // Write summaries + key points for stories that don't have them yet
+const whyLog: string[] = [];
 async function enrich(limit: number): Promise<number> {
   const tried: string[] = JSON.parse((await setting("summary_tried")) || "[]");
   const triedSet = new Set(tried);
@@ -150,14 +151,17 @@ async function enrich(limit: number): Promise<number> {
   const todo = rows.filter((s) => !hasPoints(s.summary) && !triedSet.has(s.id)).slice(0, limit);
   let done = 0;
   const work = async (s: Row) => {
-    const res = await summarizeStory(s.source_url, s.title);
+    const log: string[] = [];
+    const res = await summarizeStory(s.source_url, s.title, log);
     tried.push(s.id);
+    whyLog.push(`${(s.source_url.split("/")[2] || "?").replace(/^www\./, "")}: ${log.join(", ")}`);
     if (!res) return;
     const patch: Record<string, string> = { summary: res.text };
     if (!s.image_url && res.image) patch.image_url = res.image;
     if (res.url && isRedirectLink(s.source_url)) patch.source_url = res.url;
     const u = await rest(`stories?id=eq.${s.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(patch) });
     if (u.ok) done++;
+    else whyLog.push(`save failed ${u.status}: ${(await u.text()).slice(0, 80)}`);
   };
   for (let i = 0; i < todo.length; i += 6) await Promise.all(todo.slice(i, i + 6).map(work));
   if (todo.length) await putSetting("summary_tried", JSON.stringify(tried.slice(-500)));
@@ -166,6 +170,7 @@ async function enrich(limit: number): Promise<number> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  whyLog.length = 0;
   const url = new URL(req.url);
   const admin = await callerIsAdmin(req.headers.get("Authorization") ?? "");
   const debug = url.searchParams.get("debug") === "1";
@@ -243,6 +248,7 @@ Deno.serve(async (req) => {
   await rest(`stories?auto=eq.true&is_lead=eq.false&news_at=lt.${encodeURIComponent(old)}`, { method: "DELETE" });
 
   const out: Record<string, unknown> = { ok: true, hidden: bad.size, duplicates: dupes.length, found: all.length, new: fresh.length, inserted, summarized, auto_publish: autoPublish, admin };
+  if (debug) out.why = whyLog;
   if (debug) { out.diag = diag.filter((d) => d.feed === "bing"); out.google = diag.filter((d) => d.feed === "google").map((d) => d.status); out.errors = errors; }
   return json(out);
 });

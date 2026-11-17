@@ -85,18 +85,22 @@ export function summarizeHtml(html: string, title: string): Summary | null {
   let image = meta(html, "og:image") || meta(html, "twitter:image");
   if (image && !/^https:\/\//i.test(image)) image = "";
 
-  let body = html.replace(/<(script|style|noscript|svg|nav|header|footer|aside|form|figure|figcaption|iframe|button)[^>]*>[\s\S]*?<\/\1>/gi, " ");
-  const arts = body.match(/<article[\s\S]*?<\/article>/gi);
-  if (arts && arts.length) body = arts.sort((a, b) => b.length - a.length)[0];
-
-  const seen = new Set<string>();
-  const paras: string[] = [];
-  for (const m of body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)) {
-    const t = clean(m[1]);
-    if (t.length < 60 || t.length > 900 || BOILER.test(t) || seen.has(t)) continue;
-    seen.add(t); paras.push(t);
-    if (paras.length >= 30) break;
-  }
+  const page = html.replace(/<(script|style|noscript|svg|nav|header|footer|aside|form|figure|figcaption|iframe|button)[^>]*>[\s\S]*?<\/\1>/gi, " ");
+  const grab = (body: string) => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const m of body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)) {
+      const t = clean(m[1]);
+      if (t.length < 60 || t.length > 900 || BOILER.test(t) || seen.has(t)) continue;
+      seen.add(t); out.push(t);
+      if (out.length >= 30) break;
+    }
+    return out;
+  };
+  // the article box when it holds the story, otherwise the whole page
+  const arts = page.match(/<article[\s\S]*?<\/article>/gi);
+  let paras = arts && arts.length ? grab(arts.sort((a, b) => b.length - a.length)[0]) : [];
+  if (paras.length < 3) paras = grab(page);
   if (paras.length < 2 && ogDesc.length < 60) return null;
 
   // lead: publisher's own description when it is a real sentence, else the opening of the article
@@ -104,7 +108,7 @@ export function summarizeHtml(html: string, title: string): Summary | null {
   const opening = sentences(paras[0] || "").slice(0, 2).join(" ");
   const descOk = ogDesc.length >= 60 && !BOILER.test(ogDesc) && !(/(\.\.\.|…)$/.test(ogDesc) && opening.length >= 60);
   let lead = descOk ? ogDesc : opening || ogDesc;
-  lead = shorten(lead, 300);
+  lead = shorten(lead, 260);
 
   // key points: score sentences by how central their words are, favour facts (numbers, names)
   const sents: { s: string; i: number; score: number }[] = [];
@@ -130,24 +134,32 @@ export function summarizeHtml(html: string, title: string): Summary | null {
     picked.push(c);
     if (picked.length >= 4) break;
   }
-  const points = picked.sort((a, b) => a.i - b.i).map((p) => shorten(p.s, 200));
+  const points = picked.sort((a, b) => a.i - b.i).map((p) => shorten(p.s, 170));
   if (!lead && !points.length) return null;
-  const text = [lead, points.map((p) => "• " + p).join("\n")].filter(Boolean).join("\n\n");
+  // stories.summary holds at most 800 characters: drop the weakest-placed points until it fits
+  const build = () => [lead, points.map((p) => "• " + p).join("\n")].filter(Boolean).join("\n\n");
+  let text = build();
+  while (text.length > 790 && points.length > 1) { points.pop(); text = build(); }
+  text = text.slice(0, 790);
   return { text, image };
 }
 
+// Bing serves its RSS to desktop browsers; phone browsers get a different page
+const DESKTOP_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 const UA = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36";
 
-export async function summarizeUrl(url: string, title: string): Promise<Summary | null> {
+export async function summarizeUrl(url: string, title: string, log?: string[]): Promise<Summary | null> {
   if (!/^https:\/\//i.test(url || "")) return null;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 9000);
   try {
     const r = await fetch(url, { signal: ctrl.signal, redirect: "follow", headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml", "Accept-Language": "en-MY,en;q=0.9" } });
-    if (!r.ok || !/html/i.test(r.headers.get("content-type") ?? "")) return null;
+    if (!r.ok || !/html/i.test(r.headers.get("content-type") ?? "")) { log?.push(`page ${r.status}`); return null; }
     const html = (await r.text()).slice(0, 1_500_000);
-    return summarizeHtml(html, title);
-  } catch { return null; } finally { clearTimeout(t); }
+    const res = summarizeHtml(html, title);
+    log?.push(res ? "page ok" : `page unreadable (${html.length}b)`);
+    return res;
+  } catch (e) { log?.push(`page error ${String(e).slice(0, 40)}`); return null; } finally { clearTimeout(t); }
 }
 
 // Find this headline on Bing News: gives the real article link (for Google News redirect links)
@@ -158,7 +170,7 @@ export async function bingLookup(title: string): Promise<{ link: string; desc: s
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 8000);
     try {
-      const r = await fetch(`https://www.bing.com/news/search?q=${encodeURIComponent(q)}&format=rss&setlang=en-MY&cc=MY`, { signal: ctrl.signal, headers: { "User-Agent": UA, Accept: "application/rss+xml, text/xml" } });
+      const r = await fetch(`https://www.bing.com/news/search?q=${encodeURIComponent(q)}&format=rss&setlang=en-MY&cc=MY`, { signal: ctrl.signal, headers: { "User-Agent": DESKTOP_UA, Accept: "application/rss+xml, text/xml" } });
       if (!r.ok) continue;
       for (const chunk of (await r.text()).split(/<item>|<item [^>]*>/).slice(1)) {
         const get = (tag: string) => clean(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i").exec(chunk)?.[1] ?? "");
@@ -166,7 +178,7 @@ export async function bingLookup(title: string): Promise<{ link: string; desc: s
         let link = get("link");
         try { const real = new URL(link).searchParams.get("url"); if (real) link = real; } catch { link = ""; }
         let desc = get("description");
-        if (desc.length < 60 || similar(tokens(desc), want)) desc = "";
+        if (desc.length < 60) desc = "";
         return { link: /^https:\/\//i.test(link) && !/bing\.com|google\./i.test(link) ? link : "", desc };
       }
     } catch { /* try next */ } finally { clearTimeout(t); }
@@ -178,15 +190,15 @@ export const isRedirectLink = (u: string) => /^https?:\/\/news\.google\.com\//i.
 
 // Page summary first, then the search snippet (summary only, no key points).
 // `url` is set when the real article address was found for a redirect link.
-export async function summarizeStory(url: string, title: string): Promise<(Summary & { url?: string }) | null> {
+export async function summarizeStory(url: string, title: string, log?: string[]): Promise<(Summary & { url?: string }) | null> {
   let target = url;
   let hit: { link: string; desc: string } | null = null;
-  if (isRedirectLink(url)) { hit = await bingLookup(title); target = hit?.link ?? ""; }
+  if (isRedirectLink(url)) { hit = await bingLookup(title); target = hit?.link ?? ""; log?.push(hit ? `bing ${hit.link ? "link" : "no-link"}` : "bing miss"); }
   const found = target && target !== url ? target : undefined;
-  const page = target ? await summarizeUrl(target, title) : null;
+  const page = target ? await summarizeUrl(target, title, log) : null;
   if (page) return { ...page, url: found };
-  if (!hit) hit = await bingLookup(title);
-  return hit?.desc ? { text: shorten(hit.desc, 300), image: "", url: found ?? (hit.link || undefined) } : null;
+  if (!hit) { hit = await bingLookup(title); log?.push(hit ? `bing ${hit.desc ? "snippet" : "no-snippet"}` : "bing miss"); }
+  return hit?.desc ? { text: shorten(hit.desc, 400), image: "", url: found ?? (hit.link || undefined) } : null;
 }
 
 // A summary is "full" once it carries key points; admin-written stories are always left alone.
