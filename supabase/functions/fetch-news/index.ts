@@ -39,14 +39,18 @@ const QUERIES: { cat: Cat; q: string }[] = [
   { cat: "tennis", q: "tennis Singapore" },
 ];
 const SPORT: Record<Cat, RegExp> = {
-  bad: /badminton|shuttler|\bBWF\b|\bBAM\b|bulu tangkis/i,
+  bad: /badminton|shuttler|bulu tangkis|\b(BWF|BAM)\b/i,
   pickleball: /pickleball/i,
   tennis: /tennis|\bATP\b|\bWTA\b|\bITF\b|Davis Cup|Billie Jean King Cup|tenis/i,
 };
+// Headlines that name our shuttlers are badminton stories even without the word
+const SHUTTLERS = /Aaron Chia|Soh Wooi Yik|Aaron Tai|Yap Roy King|Aaron-Roy|Lee Zii Jia|Zii Jia|Pearly Tan|Thinaah|Pearly-Thinaah|Goh Jin Wei|Ng Tze Yong|Leong Jun Hao|Man Wei Chong|Tee Kai Wun|Chen Tang Jie|Toh Ee Wei|Goh Soon Huat|Lai Shevon|Goh Sze Fei|Nur Izzuddin|Sze Fei-Izzuddin|Loh Kean Yew|Wong Tien Ci|Lim Chong King|Kok Jing Hong|Go Pei Kee|Letshanaa|Wong Ling Ching|Justin Hoh|Eogene Ewe|Jia Min|Terry Hee|Jessica Tan/i;
 const NOT_SPORT: Partial<Record<Cat, RegExp>> = { tennis: /table[ -]tennis|ping[ -]?pong|pingpong|tenis meja|padel/i };
-const JOHOR = /johor|\bJB\b|iskandar|muar|batu pahat|kluang|kulai|pasir gudang|skudai|mount austin|segamat|pontian|kota tinggi|nusajaya|medini|tebrau|bukit indah|senai/i;
-const LOCAL = /malaysia|malaysian|m['’]sian|johor|\bJB\b|kuala lumpur|\bKL\b|selangor|penang|pulau pinang|perak|kedah|kelantan|terengganu|pahang|negeri sembilan|melaka|malacca|sabah|sarawak|putrajaya|singapore|singaporean|\bSG\b|SEA Games|Sukan SEA|Asean|\bBAM\b|\bMPA\b|Harimau|Lee Zii Jia|Aaron Chia|Soh Wooi Yik|Pearly Tan|Thinaah|Goh Jin Wei|Ng Tze Yong|Leong Jun Hao|Man Wei Chong|Tee Kai Wun|Loh Kean Yew|Chen Tang Jie|Toh Ee Wei|Goh Soon Huat|Lai Shevon|Wee Kiong|Sze Fei|Izzuddin/i;
+const JOHOR = /johor|iskandar|muar|batu pahat|kluang|kulai|pasir gudang|skudai|mount austin|segamat|pontian|kota tinggi|nusajaya|medini|tebrau|bukit indah|senai/i;
+const isJohor = (t: string) => JOHOR.test(t) || /\bJB\b/.test(t);
+const LOCAL = /malaysia|malaysian|m['’]sian|johor|kuala lumpur|selangor|penang|pulau pinang|perak|kedah|kelantan|terengganu|pahang|negeri sembilan|melaka|malacca|sabah|sarawak|putrajaya|singapore|singaporean|SEA Games|Sukan SEA|Asean|Harimau|Wee Kiong/i;
 const LOCAL_SOURCE = /star|malay mail|new straits|\bNST\b|bernama|thesun|the sun|berita harian|harian metro|free malaysia today|\bFMT\b|malaysiakini|sinar|utusan|kosmo|astro|stadium|says|rakyat post|\bRTM\b|sin chew|china press|oriental daily|kwong wah|the edge|malaysia gazette|twentytwo13|scoop|vibes|mstar|straits times|\bCNA\b|channel newsasia|asiaone|mothership|today online|yahoo news singapore|yahoo malaysia|8world|zaobao|lianhe|nanyang/i;
+const ACRONYM = /\b(JB|KL|SG|BAM|MPA|BWF)\b/; // capitals only, so "Bam Adebayo" isn't the Badminton Association of Malaysia
 const BLOCK = /police|arrest|court|lawsuit|sued|abuse|assault|threat|barricad|scandal|explicit|outburst|divorce|girlfriend|boyfriend|dating|affair|nude|sex|drug|doping|died|dies|death|killed|murder|crash|gambl|betting|match[- ]fixing|bikini|racist|slur/i;
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
@@ -54,10 +58,13 @@ const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 function verdict(cat: string, title: string, source: string): string {
   const c = (cat in SPORT ? cat : "bad") as Cat;
   if (!title) return "empty";
-  if (!SPORT[c].test(title)) return "off-sport";
+  const sport = c === "bad"
+    ? /badminton|shuttler|bulu tangkis/i.test(title) || /\b(BWF|BAM)\b/.test(title) || SHUTTLERS.test(title)
+    : SPORT[c].test(title);
+  if (!sport) return "off-sport";
   if (NOT_SPORT[c]?.test(title)) return "other sport";
   if (BLOCK.test(title)) return "not friendly";
-  if (!(LOCAL.test(title) || LOCAL_SOURCE.test(source))) return "not local";
+  if (!(LOCAL.test(title) || ACRONYM.test(title) || SHUTTLERS.test(title) || LOCAL_SOURCE.test(source))) return "not local";
   return "";
 }
 
@@ -104,7 +111,7 @@ function parseItems(xml: string, cat: Cat, kind: "google" | "bing"): { all: numb
     if (why) { if (dropped.length < 4 && title) dropped.push(`${why}: ${title.slice(0, 60)}`); continue; }
     let desc = kind === "bing" ? get("description") : "";
     if (desc.length < 60 || similar(tokens(desc), tokens(title))) desc = "";
-    kept.push({ cat, title: title.slice(0, 200), link, source: source.slice(0, 80), at, johor: JOHOR.test(title), desc: desc.slice(0, 400) });
+    kept.push({ cat, title: title.slice(0, 200), link, source: source.slice(0, 80), at, johor: isJohor(title), desc: desc.slice(0, 400) });
   }
   return { all: chunks.length, kept, dropped };
 }
