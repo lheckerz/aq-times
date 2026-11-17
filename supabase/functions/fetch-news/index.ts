@@ -3,11 +3,11 @@
 // Each run also:
 //   - re-checks recent auto-collected stories against the rules and hides any that fail
 //   - hides duplicates (the same story from another outlet), keeping the first one published
-//   - writes a short summary + key points for up to 10 stories that don't have them yet
+//   - writes a short summary + key points for up to 8 stories that don't have them yet
 // Runs every 20 minutes (pg_cron) and on demand from the admin app.
 // Public calls are throttled to one run per 5 minutes; admins can refresh every 30 seconds.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { tokens, similar, canonicalUrl, clean, summarizeStory, hasPoints } from "./summarize.ts";
+import { tokens, similar, canonicalUrl, clean, summarizeStory, hasPoints, isRedirectLink } from "./summarize.ts";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -148,10 +148,11 @@ async function enrich(limit: number): Promise<number> {
     if (!res) return;
     const patch: Record<string, string> = { summary: res.text };
     if (!s.image_url && res.image) patch.image_url = res.image;
+    if (res.url && isRedirectLink(s.source_url)) patch.source_url = res.url;
     const u = await rest(`stories?id=eq.${s.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(patch) });
     if (u.ok) done++;
   };
-  for (let i = 0; i < todo.length; i += 4) await Promise.all(todo.slice(i, i + 4).map(work));
+  for (let i = 0; i < todo.length; i += 6) await Promise.all(todo.slice(i, i + 6).map(work));
   if (todo.length) await putSetting("summary_tried", JSON.stringify(tried.slice(-500)));
   return done;
 }
@@ -196,7 +197,8 @@ Deno.serve(async (req) => {
   const seenTok = existing.map((e) => ({ t: tokens(e.title), at: new Date(e.news_at || e.created_at).getTime() }));
   const diag: Diag[] = [];
   const lists = await Promise.all(QUERIES.flatMap((x) => [readFeed("bing", x.cat, x.q, diag), readFeed("google", x.cat, x.q, diag)]));
-  const all = lists.flat().sort((a, b) => (Number(b.johor) - Number(a.johor)) || (b.at.getTime() - a.at.getTime()));
+  // Johor first, then real article links before Google News redirect links (same story keeps the readable one), then newest
+  const all = lists.flat().sort((a, b) => (Number(b.johor) - Number(a.johor)) || (Number(isRedirectLink(a.link)) - Number(isRedirectLink(b.link))) || (b.at.getTime() - a.at.getTime()));
   const fresh: Item[] = [];
   for (const it of all) {
     const u = canonicalUrl(it.link), t = tokens(it.title);
@@ -227,7 +229,7 @@ Deno.serve(async (req) => {
   if (feedLines.length) await rest("feed", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(feedLines) });
 
   // 4) Summaries + key points for the newest stories that lack them
-  const summarized = await enrich(admin || debug ? 14 : 10);
+  const summarized = await enrich(admin || debug ? 12 : 8);
 
   // 5) Tidy: drop auto stories older than 45 days that aren't the lead
   const old = new Date(Date.now() - 45 * 864e5).toISOString();

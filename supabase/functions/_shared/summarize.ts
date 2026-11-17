@@ -119,7 +119,7 @@ export function summarizeHtml(html: string, title: string): Summary | null {
     if (/\d/.test(s)) score *= 1.25;
     if (ws.some((w) => titleT.has(w))) score *= 1.3;
     if (i < 6) score *= 1.15;
-    if (/^["“]/.test(s) && !/\b(said|says|added|told)\b/i.test(s)) score *= 0.55; // bare quotes read badly out of context
+    if (/^["“]/.test(s) && !/\b(said|says|added|told)\b/i.test(s)) return; // a bare quote reads badly out of context
     sents.push({ s, i, score });
   });
   const leadT = tokens(lead);
@@ -150,30 +150,43 @@ export async function summarizeUrl(url: string, title: string): Promise<Summary 
   } catch { return null; } finally { clearTimeout(t); }
 }
 
-// Fallback when the article page can't be read: the news search snippet for this headline
-export async function snippetFor(title: string): Promise<string> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 8000);
-  try {
-    const q = encodeURIComponent(`"${title.slice(0, 110)}"`);
-    const r = await fetch(`https://www.bing.com/news/search?q=${q}&format=rss&setlang=en-MY&cc=MY`, { signal: ctrl.signal, headers: { "User-Agent": UA, Accept: "application/rss+xml, text/xml" } });
-    if (!r.ok) return "";
-    const want = tokens(title);
-    for (const chunk of (await r.text()).split(/<item>|<item [^>]*>/).slice(1)) {
-      const get = (tag: string) => clean(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i").exec(chunk)?.[1] ?? "");
-      const d = get("description");
-      if (d.length >= 60 && similar(tokens(get("title")), want) && !similar(tokens(d), want)) return shorten(d, 300);
-    }
-    return "";
-  } catch { return ""; } finally { clearTimeout(t); }
+// Find this headline on Bing News: gives the real article link (for Google News redirect links)
+// and the search snippet (fallback summary when the article page can't be read)
+export async function bingLookup(title: string): Promise<{ link: string; desc: string } | null> {
+  const want = tokens(title);
+  for (const q of [`"${title.slice(0, 110)}"`, title.slice(0, 140)]) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch(`https://www.bing.com/news/search?q=${encodeURIComponent(q)}&format=rss&setlang=en-MY&cc=MY`, { signal: ctrl.signal, headers: { "User-Agent": UA, Accept: "application/rss+xml, text/xml" } });
+      if (!r.ok) continue;
+      for (const chunk of (await r.text()).split(/<item>|<item [^>]*>/).slice(1)) {
+        const get = (tag: string) => clean(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i").exec(chunk)?.[1] ?? "");
+        if (!similar(tokens(get("title")), want)) continue;
+        let link = get("link");
+        try { const real = new URL(link).searchParams.get("url"); if (real) link = real; } catch { link = ""; }
+        let desc = get("description");
+        if (desc.length < 60 || similar(tokens(desc), want)) desc = "";
+        return { link: /^https:\/\//i.test(link) && !/bing\.com|google\./i.test(link) ? link : "", desc };
+      }
+    } catch { /* try next */ } finally { clearTimeout(t); }
+  }
+  return null;
 }
 
-// Page summary first, then the search snippet (summary only, no key points)
-export async function summarizeStory(url: string, title: string): Promise<Summary | null> {
-  const page = await summarizeUrl(url, title);
-  if (page) return page;
-  const snip = await snippetFor(title);
-  return snip ? { text: snip, image: "" } : null;
+export const isRedirectLink = (u: string) => /^https?:\/\/news\.google\.com\//i.test(u || "");
+
+// Page summary first, then the search snippet (summary only, no key points).
+// `url` is set when the real article address was found for a redirect link.
+export async function summarizeStory(url: string, title: string): Promise<(Summary & { url?: string }) | null> {
+  let target = url;
+  let hit: { link: string; desc: string } | null = null;
+  if (isRedirectLink(url)) { hit = await bingLookup(title); target = hit?.link ?? ""; }
+  const found = target && target !== url ? target : undefined;
+  const page = target ? await summarizeUrl(target, title) : null;
+  if (page) return { ...page, url: found };
+  if (!hit) hit = await bingLookup(title);
+  return hit?.desc ? { text: shorten(hit.desc, 300), image: "", url: found ?? (hit.link || undefined) } : null;
 }
 
 // A summary is "full" once it carries key points; admin-written stories are always left alone.

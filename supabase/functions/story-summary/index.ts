@@ -3,7 +3,7 @@
 // summary to the story (so everyone else gets it instantly via realtime), and returns it.
 // Each story is only fetched from its source once; admin-written stories are never touched.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { summarizeStory, hasPoints } from "./summarize.ts";
+import { summarizeStory, hasPoints, isRedirectLink } from "./summarize.ts";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
   if (!res) return json({ summary: s.summary ?? "", image_url: s.image_url ?? "" });
   const patch: Record<string, string> = { summary: res.text };
   if (!s.image_url && res.image) patch.image_url = res.image;
+  if (res.url && isRedirectLink(s.source_url)) patch.source_url = res.url;
   await rest(`stories?id=eq.${id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify(patch) });
   return json({ summary: res.text, image_url: patch.image_url ?? s.image_url ?? "" });
 });
