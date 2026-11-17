@@ -289,7 +289,7 @@ function manageView() {
 
 function storyFields(d, prefix) {
   return `<label class="field">Headline<textarea data-bind="${prefix}.title" rows="2" maxlength="200">${esc(d.title)}</textarea></label>
-    <label class="field">Summary<textarea data-bind="${prefix}.summary" rows="3" maxlength="800">${esc(d.summary)}</textarea></label>
+    <label class="field">Summary<textarea data-bind="${prefix}.summary" rows="7" maxlength="2400">${esc(d.summary)}</textarea><span class="hint">Shown when members tap the headline. First paragraph is the summary; start a line with • for each key point.</span></label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <label class="field">Show to${sel(prefix + '.show_to', d.show_to, SHOW)}</label>
       <label class="field">Section${sel(prefix + '.cat', d.cat, [['bad', 'Badminton'], ['pickleball', 'Pickleball'], ['tennis', 'Tennis'], ['aq', 'AQ Smash'], ['opp', 'Opportunity']])}</label></div>
@@ -320,7 +320,7 @@ function newsView() {
     return `<article class="acard"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="ctag" style="background:${t.bg};color:${t.fg}">${t.label}</span>
       ${s.is_johor ? '<span class="badge" style="background:var(--green);color:var(--navy);border:1.5px solid var(--navy)">JOHOR</span>' : ''}${s.auto ? '<span class="badge" style="background:var(--paper);color:var(--muted);border:1.5px solid var(--line)">AUTO</span>' : ''}
       <span class="status" style="color:${pend ? 'var(--blue)' : pub ? 'var(--green-ink)' : 'var(--muted)'}">${pend ? '● Waiting for review' : pub ? '● Live in app' : '○ Skipped'}</span>${s.is_lead ? '<span class="badge" style="background:var(--navy);color:var(--green)">LEAD</span>' : ''}<span class="hint" style="font-size:11px">${timeAgo(s.news_at || s.created_at)}</span></div>
-      <div class="tt">${esc(s.title)}</div>${s.summary ? `<div class="mm">${esc(s.summary)}</div>` : ''}<div class="mm">${s.source_url ? `<a href="${esc(s.source_url)}" target="_blank" rel="noopener">${esc(s.source || 'Source')} ↗</a>` : esc(s.source || 'No source')} · Shown to <b style="color:var(--navy)">${esc(s.show_to)}</b></div>
+      <div class="tt">${esc(s.title)}</div>${s.summary ? `<div class="mm">${esc(s.summary.split('\n')[0].slice(0, 180))}${/(^|\n)• /.test(s.summary) ? ' · <b>key points ✓</b>' : ''}</div>` : '<div class="mm">No summary yet</div>'}<div class="mm">${s.source_url ? `<a href="${esc(s.source_url)}" target="_blank" rel="noopener">${esc(s.source || 'Source')} ↗</a>` : esc(s.source || 'No source')} · Shown to <b style="color:var(--navy)">${esc(s.show_to)}</b></div>
       <div class="acts"><button type="button" class="btn blue sm" data-act="story-edit:${s.id}">Edit</button>
       <button type="button" class="btn ${pend ? '' : 'ghost'} sm" data-act="story-status:${s.id}:${pend ? 'published' : pub ? 'pending' : 'pending'}">${pend ? 'Publish' : pub ? 'Unpublish' : 'Restore'}</button>
       ${pub && !s.is_lead ? `<button type="button" class="btn ghost sm" data-act="story-lead:${s.id}">Make lead</button>` : ''}

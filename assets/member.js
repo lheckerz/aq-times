@@ -1,16 +1,17 @@
 // The AQ Times — member app
-import { sb, esc, $, BADGES, CATS, AREAS, visibleTo, fmtDateLong, sinceLabel, feedWhen, ctaHref, hasButton, coverHTML, thumbHTML, ICONS, registerSW, timeAgo } from './common.js';
+import { sb, esc, $, BADGES, CATS, AREAS, visibleTo, fmtDateLong, sinceLabel, feedWhen, ctaHref, hasButton, coverHTML, thumbHTML, ICONS, registerSW, timeAgo, dedupeStories, parseSummary } from './common.js';
 
 const LS = { get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
 
 const state = {
   tab: 'today', seg: 'all', area: LS.get('aq.area', 'Johor Bahru'), seen: LS.get('aq.seen', {}), open: {},
   anns: [], stories: [], ticker: [], feed: [], settings: {}, wx: null, newFeedId: null, newStories: new Set(), tick: 0, loaded: false,
+  story: null, storyLoading: false,
 };
 
 // ---------- data ----------
 async function loadAnns() { const { data } = await sb.from('announcements').select('*').eq('live', true).order('created_at', { ascending: false }); state.anns = data || []; }
-async function loadStories() { const { data } = await sb.from('stories').select('*').eq('status', 'published').neq('cat', 'johor').order('news_at', { ascending: false }).limit(80); state.stories = data || []; }
+async function loadStories() { const { data } = await sb.from('stories').select('*').eq('status', 'published').neq('cat', 'johor').order('news_at', { ascending: false }).limit(120); state.stories = dedupeStories(data || []); }
 async function loadTicker() { const { data } = await sb.from('ticker').select('*').order('sort').order('created_at'); state.ticker = data || []; }
 async function loadFeed() { const { data } = await sb.from('feed').select('*').order('created_at', { ascending: false }).limit(20); state.feed = data || []; }
 async function loadSettings() { const { data } = await sb.from('settings').select('*'); state.settings = Object.fromEntries((data || []).map((r) => [r.key, r.value])); }
@@ -75,9 +76,12 @@ function ctaButton(a, cls = 'btn') {
 }
 const badge = (a) => { const b = BADGES[a.tag] || BADGES.UPDATE; return `<span class="badge" style="background:${b.bg};color:${b.fg}">${b.label}</span>`; };
 const catTag = (c) => { const t = CATS[c] || CATS.bad; return `<span class="ctag" style="background:${t.bg};color:${t.fg}">${t.label}</span>`; };
-const srcLine = (s) => `<div class="src">${s.source ? (s.source_url ? `<a href="${esc(s.source_url)}" target="_blank" rel="noopener">${esc(s.source)} ↗</a>` : esc(s.source)) : ''}<span class="ago">${timeAgo(s.news_at || s.published_at || s.created_at)}</span></div>`;
+const srcLine = (s) => `<div class="src">${s.source ? `<span>${esc(s.source)}</span>` : ''}<span class="ago">${timeAgo(s.news_at || s.published_at || s.created_at)}</span></div>`;
 const chips = (s) => `<span class="chip-row">${catTag(s.cat)}${s.is_johor ? '<span class="jb">JOHOR</span>' : ''}${state.newStories.has(s.id) ? '<span class="new">● NEW</span>' : ''}</span>`;
-const headline = (s, tag = 'h3') => s.source_url ? `<a class="h" href="${esc(s.source_url)}" target="_blank" rel="noopener"><${tag}>${esc(s.title)}</${tag}></a>` : `<${tag}>${esc(s.title)}</${tag}>`;
+// Headlines open the in-app story page (summary + key points), never the outside site
+const headline = (s, tag = 'h3') => `<a class="h" href="#story-${esc(s.id)}" data-act="story:${esc(s.id)}"><${tag}>${esc(s.title)}</${tag}></a>`;
+const teaser = (s) => { const l = parseSummary(s.summary).lead; return l ? `<p class="teaser">${esc(l)}</p>` : ''; };
+const img = (s) => s.image_url ? `<img src="${esc(s.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : '';
 
 // ---------- views ----------
 function views() {
@@ -99,11 +103,11 @@ function todayView() {
   let h = '<div class="row-a">';
   h += '<article class="lead">' + label('Top sports stories');
   if (lead) {
-    h += `<div style="margin-top:8px">${chips(lead)}</div>${headline(lead, 'h2')}${lead.image_url ? `<img src="${esc(lead.image_url)}" alt="" loading="lazy">` : ''}${lead.summary ? `<p>${esc(lead.summary)}</p>` : ''}${srcLine(lead)}`;
+    h += `<div style="margin-top:8px">${chips(lead)}</div>${headline(lead, 'h2')}${img(lead)}${teaser(lead)}${srcLine(lead)}<button type="button" class="more-link" data-act="story:${esc(lead.id)}">Read summary ›</button>`;
   } else h += '<p>No stories yet today.</p>';
   h += '</article>' + weatherCard() + '</div>';
   if (seconds.length) {
-    h += '<div class="row-b">' + seconds.map((s, i) => `<article class="story" style="padding:0;border:0"><div class="no">NO. ${i + 2}${s.is_johor ? ' · JOHOR' : ''}</div>${headline(s)}${s.summary ? `<p>${esc(s.summary)}</p>` : ''}${srcLine(s)}</article>`).join('') + '</div>';
+    h += '<div class="row-b">' + seconds.map((s, i) => `<article class="story" style="padding:0;border:0"><div class="no">NO. ${i + 2}${s.is_johor ? ' · JOHOR' : ''}</div>${headline(s)}${teaser(s)}${srcLine(s)}</article>`).join('') + '</div>';
   }
   if (feat) {
     h += label('From AQ Smash', 'blue');
@@ -120,7 +124,7 @@ function todayView() {
   h += '</div></div>';
   if (more.length) {
     h += label('More sports news', 'navy');
-    h += more.map((s, i) => `<article class="num story" style="padding:10px 0"><span class="n">${i + 1}</span><div style="min-width:0">${chips(s)}${headline(s)}${s.summary ? `<p>${esc(s.summary)}</p>` : ''}${srcLine(s)}</div></article>`).join('');
+    h += more.map((s, i) => `<article class="num story" style="padding:10px 0"><span class="n">${i + 1}</span><div style="min-width:0">${chips(s)}${headline(s)}${srcLine(s)}</div></article>`).join('');
     h += `<button type="button" class="btn ghost sm" style="margin-top:12px" data-act="tab:news">See all sports news</button>`;
   }
   return h + '<div style="height:18px"></div>';
@@ -152,7 +156,7 @@ function updatesView() {
 function newsView() {
   const list = views().stories.filter((s) => state.seg === 'all' || s.cat === state.seg);
   const jb = list.filter((s) => s.is_johor), rest = list.filter((s) => !s.is_johor);
-  const card = (s) => `<article class="story">${chips(s)}${headline(s)}${s.image_url ? `<img src="${esc(s.image_url)}" alt="" loading="lazy">` : ''}${s.summary ? `<p>${esc(s.summary)}</p>` : ''}${srcLine(s)}</article>`;
+  const card = (s) => `<article class="story">${chips(s)}${headline(s)}${img(s)}${teaser(s)}${srcLine(s)}</article>`;
   let h = `<div class="seg" role="tablist">${[['all', 'All'], ['bad', 'Badminton'], ['pickleball', 'Pickleball'], ['tennis', 'Tennis']].map(([k, l]) => `<button type="button" role="tab" aria-selected="${state.seg === k}" data-act="seg:${k}">${l}</button>`).join('')}</div>`;
   h += `<p class="hint" style="margin:8px 0 0">Updates automatically, all day. ${list.length} stories from the last week.</p>`;
   if (!list.length) h += '<p class="p">No stories in this section yet. New ones appear here as soon as they\u2019re published.</p>';
@@ -195,11 +199,83 @@ function renderTicker() {
   el.classList.remove('fade'); void el.offsetWidth; el.classList.add('fade');
 }
 
+
+// ---------- story page (in-app summary; no outside links) ----------
+const hasPoints = (s) => parseSummary(s && s.summary).points.length > 0;
+const findStory = (id) => state.stories.find((x) => x.id === id) || (state.storyCache && state.storyCache.id === id ? state.storyCache : null);
+
+function storyHTML(s) {
+  const { lead, more, points } = parseSummary(s.summary);
+  const loading = state.storyLoading && !points.length;
+  let h = `<header class="sheet-bar"><button type="button" class="back" data-act="close-story" aria-label="Back">‹ Back</button>
+    <span class="sheet-wm" aria-hidden="true"><i>THE</i><b>AQ</b><em>TIMES</em></span><span style="width:64px"></span></header><div class="sheet-body" id="sheetBody">`;
+  h += `<div>${chips(s)}</div><h1 id="sheetTitle">${esc(s.title)}</h1>`;
+  h += `<div class="byline">${s.source ? `<b>${esc(s.source)}</b><span>·</span>` : ''}<span>${timeAgo(s.news_at || s.published_at || s.created_at)}</span></div>`;
+  h += img(s);
+  h += label('Summary');
+  if (lead) h += `<p class="sum">${esc(lead)}</p>` + more.map((p) => `<p class="sum">${esc(p)}</p>`).join('');
+  else if (loading) h += '<div class="skeleton"></div><div class="skeleton" style="width:80%"></div>';
+  if (points.length) h += label('Key points', 'blue') + `<ul class="points">${points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>`;
+  else if (loading) h += label('Key points', 'blue') + '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton" style="width:70%"></div><p class="hint">Preparing the key points…</p>';
+  if (!lead && !points.length && !loading) h += '<p class="sum muted">A summary isn’t available for this story yet. Check back shortly.</p>';
+  if (s.auto && s.source) h += `<p class="credit">Summary based on reporting by ${esc(s.source)}.</p>`;
+  const rel = state.stories.filter((x) => x.id !== s.id && x.cat === s.cat).slice(0, 4);
+  if (rel.length) h += label(`More ${(CATS[s.cat] || CATS.bad).name.toLowerCase()} news`, 'navy') + rel.map((x) => `<article class="story">${chips(x)}${headline(x)}${srcLine(x)}</article>`).join('');
+  return h + '<button type="button" class="btn ghost sm" style="margin-top:16px" data-act="close-story">Back to The AQ Times</button><div style="height:calc(24px + var(--safe-b))"></div></div>';
+}
+
+function renderSheet() {
+  const el = $('#sheet');
+  const s = state.story && findStory(state.story);
+  if (!s) { el.hidden = true; el.innerHTML = ''; return; }
+  const prev = $('#sheetBody');
+  const top = prev && prev.dataset.id === s.id ? prev.scrollTop : 0;
+  el.innerHTML = storyHTML(s);
+  el.hidden = false;
+  const body = $('#sheetBody'); body.dataset.id = s.id; body.scrollTop = top;
+}
+
+async function openStory(id, push = true) {
+  if (!findStory(id)) {
+    const { data } = await sb.from('stories').select('*').eq('id', id).eq('status', 'published').maybeSingle();
+    if (!data) { if (push === false) history.replaceState(null, '', location.pathname); return; }
+    state.storyCache = data;
+  }
+  const first = state.story !== id;
+  state.story = id;
+  if (push) history.pushState({ story: id }, '', '#story-' + id);
+  state.storyLoading = false;
+  renderSheet();
+  if (first) { const b = $('#sheetBody'); if (b) { b.scrollTop = 0; } const back = $('#sheet .back'); if (back) back.focus({ preventScroll: true }); }
+  const s = findStory(id);
+  if (s && s.auto && !hasPoints(s)) {
+    state.storyLoading = true; renderSheet();
+    try {
+      const { data } = await sb.functions.invoke('story-summary', { body: { id } });
+      if (data && data.summary) { s.summary = data.summary; if (data.image_url && !s.image_url) s.image_url = data.image_url; }
+    } catch {}
+    state.storyLoading = false;
+    if (state.story === id) renderSheet();
+    render();
+  }
+}
+function closeStory() {
+  if (history.state && history.state.story) history.back();
+  else { state.story = null; history.replaceState(null, '', location.pathname); renderSheet(); }
+}
+window.addEventListener('popstate', () => {
+  const m = /^#story-([0-9a-f-]{36})$/i.exec(location.hash);
+  if (m) openStory(m[1], false); else { state.story = null; renderSheet(); }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.story) closeStory(); });
+
 // ---------- events ----------
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (!el || el.tagName === 'SELECT') return;
   const [act, val] = el.dataset.act.split(/:(.*)/s);
+  if (act === 'story') { e.preventDefault(); openStory(val); return; }
+  if (act === 'close-story') { closeStory(); return; }
   if (act === 'tab') { state.tab = val; render(); $('#scroll').scrollTop = 0; }
   else if (act === 'open') {
     state.open[val] = !state.open[val];
@@ -221,7 +297,7 @@ document.addEventListener('change', async (e) => {
 function subscribe() {
   sb.channel('aq-times-public')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, async () => { await loadAnns(); render(); })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'stories' }, async (p) => { if (p.eventType === 'INSERT' || (p.eventType === 'UPDATE' && p.old && p.old.status !== 'published')) state.newStories.add(p.new.id); await loadStories(); render(); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'stories' }, async (p) => { if (p.eventType === 'INSERT' || (p.eventType === 'UPDATE' && p.old && 'status' in p.old && p.old.status !== 'published' && p.new.status === 'published')) state.newStories.add(p.new.id); await loadStories(); render(); if (state.story) renderSheet(); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ticker' }, async () => { await loadTicker(); renderTicker(); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, async () => { await loadSettings(); render(); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'feed' }, async (p) => { await loadFeed(); if (p.eventType === 'INSERT') state.newFeedId = p.new.id; render(); })
@@ -241,12 +317,13 @@ async function checkAdmin() {
   render();
   await Promise.all([loadAnns(), loadStories(), loadTicker(), loadFeed(), loadSettings()]);
   state.loaded = true; render();
+  { const m = /^#story-([0-9a-f-]{36})$/i.exec(location.hash); if (m) openStory(m[1], false); }
   loadWeather().then(render);
   subscribe();
   checkAdmin();
   setInterval(() => { state.tick++; renderTicker(); }, 4500);
   setInterval(() => { $('#dateLong').textContent = fmtDateLong(); }, 60000);
-  setInterval(() => { loadStories().then(render); }, 5 * 60000); // backup refresh if live updates drop
+  setInterval(() => { loadStories().then(() => { render(); if (state.story) renderSheet(); }); }, 5 * 60000); // backup refresh if live updates drop
   setInterval(() => loadWeather().then(render), 30 * 60000);
   registerSW();
 })();

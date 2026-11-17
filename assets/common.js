@@ -123,3 +123,39 @@ export const ICONS = {
 export function registerSW() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
+
+// ---------- story summaries & duplicate checks (mirror of supabase/functions/_shared/summarize.ts) ----------
+const STOP = new Set(('a an and are as at be been but by for from has have he her his in into is it its of on or our over she so than that the their them they this to up was were will with after before about against amid says said say new news latest today vs v how why what who when where which win wins won beat beats out off more most first second final finals open title round match matches game games set sets').split(' '));
+export function titleTokens(t) {
+  const out = new Set();
+  for (let w of String(t || '').toLowerCase().replace(/['’]/g, '').split(/[^a-z0-9]+/)) {
+    if (!w || STOP.has(w)) continue;
+    if (w.length < 3 && !/\d/.test(w)) continue;
+    if (w.length > 4 && w.endsWith('s') && !w.endsWith('ss')) w = w.slice(0, -1);
+    out.add(w);
+  }
+  return out;
+}
+export function similarTitles(a, b) {
+  if (!a.size || !b.size) return false;
+  let inter = 0; for (const w of a) if (b.has(w)) inter++;
+  const min = Math.min(a.size, b.size);
+  return (min >= 3 && inter / min >= 0.7) || inter / (a.size + b.size - inter) >= 0.5;
+}
+// Keep the first of any near-identical headlines (same story from different outlets)
+export function dedupeStories(list) {
+  const kept = [];
+  for (const s of list) {
+    const t = titleTokens(s.title), at = new Date(s.news_at || s.created_at).getTime();
+    if (kept.some((k) => (k.s.source_url && k.s.source_url === s.source_url) || (Math.abs(k.at - at) <= 3 * 864e5 && similarTitles(k.t, t)))) continue;
+    kept.push({ s, t, at });
+  }
+  return kept.map((k) => k.s);
+}
+// summary text: paragraph(s), then "• point" lines
+export function parseSummary(text) {
+  const lines = String(text || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const points = lines.filter((l) => /^[•\-*]\s/.test(l)).map((l) => l.replace(/^[•\-*]\s+/, ''));
+  const paras = lines.filter((l) => !/^[•\-*]\s/.test(l));
+  return { lead: paras[0] || '', more: paras.slice(1), points };
+}
