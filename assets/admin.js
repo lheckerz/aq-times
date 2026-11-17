@@ -5,6 +5,7 @@ const blankDraft = () => ({ featured: false, tag: 'UPDATE', title: '', body: '',
 const blankStory = () => ({ link: '', cat: 'bad', title: '', summary: '', source: '', source_url: '', image_url: '', show_to: 'Everyone', is_lead: false });
 
 const S = {
+  codeEmail: '', resendAt: 0, resendTimer: null, pwMode: false, signOk: false,
   session: null, admin: false, tab: 'home', loc: 'Johor Bahru',
   anns: [], stories: [], ticker: [], feed: [], settings: {}, admins: [], learn: [],
   draft: blankDraft(), editingId: null, imgNote: '', busy: false,
@@ -359,13 +360,35 @@ function signInView(msg = '') {
   if (S.recovery) return `<div class="signin"><h1 class="h1">Set a new password</h1>
     <label class="field">New password<input id="pwNew" type="password" autocomplete="new-password" minlength="8"></label>
     <button type="button" class="btn" data-act="pw-recover">Save password</button>${msg ? `<div class="err">${esc(msg)}</div>` : ''}</div>`;
-  return `<div class="signin"><div><h1 class="h1">Admin sign in</h1><p class="hint" style="margin:6px 0 0">For the AQ Smash team. Members don’t need an account.</p></div>
+  const head = `<div><h1 class="h1">Admin sign in</h1><p class="hint" style="margin:6px 0 0">For the AQ Smash team. Members don’t need an account.</p></div>`;
+  const note = msg ? `<div class="${S.signOk ? 'ok' : 'err'}" role="alert">${esc(msg)}</div>` : '';
+  // password sign-in, kept as a fallback
+  if (S.pwMode) return `<div class="signin">${head}
     <form id="signin" style="display:flex;flex-direction:column;gap:12px">
-      <label class="field">Email<input id="em" type="email" autocomplete="username" required></label>
+      <label class="field">Email<input id="em" type="email" autocomplete="username" value="${esc(S.codeEmail || lastEmail())}" required></label>
       <label class="field">Password<input id="pw" type="password" autocomplete="current-password" required></label>
       <button class="btn" type="submit" style="min-height:52px">Sign in</button></form>
     <button type="button" class="btn ghost sm" data-act="forgot">Forgot password?</button>
-    ${msg ? `<div class="err" role="alert">${esc(msg)}</div>` : ''}</div>`;
+    <button type="button" class="linkbtn" data-act="code-mode">Email me a sign-in code instead</button>${note}</div>`;
+  // step 2: type the code from the email
+  if (S.codeEmail) {
+    const wait = Math.max(0, Math.ceil((S.resendAt - Date.now()) / 1000));
+    return `<div class="signin">${head}
+    <form id="verify-code" style="display:flex;flex-direction:column;gap:12px">
+      <p class="hint" style="margin:0">We emailed a sign-in code to <b style="color:var(--navy)">${esc(S.codeEmail)}</b>. It works once and expires in an hour. Check spam if it’s not there in a minute.</p>
+      <label class="field">Sign-in code<input id="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="10" placeholder="6-digit code" style="font:800 24px var(--sans);letter-spacing:.3em;text-align:center" required></label>
+      <button class="btn" type="submit" style="min-height:52px">Sign in</button></form>
+    <p class="hint" style="margin:0">Got a link instead of a code? Just tap the link in the email on this phone.</p>
+    <button type="button" class="btn ghost sm" data-act="code-resend" ${wait ? 'disabled' : ''}>${wait ? `Send a new code in ${wait}s` : 'Send a new code'}</button>
+    <button type="button" class="linkbtn" data-act="code-reset">Use a different email</button>${note}</div>`;
+  }
+  // step 1: email only
+  return `<div class="signin">${head}
+    <form id="signin-code" style="display:flex;flex-direction:column;gap:12px">
+      <label class="field">Email<input id="em" type="email" autocomplete="username" inputmode="email" value="${esc(lastEmail())}" required></label>
+      <button class="btn" type="submit" style="min-height:52px">Email me a sign-in code</button></form>
+    <p class="hint" style="margin:0">No password needed. We’ll send a one-time code to your email.</p>
+    <button type="button" class="linkbtn" data-act="pw-mode">Sign in with a password instead</button>${note}</div>`;
 }
 
 function render() {
@@ -399,7 +422,48 @@ document.addEventListener('change', (e) => {
   if (el.matches('[data-bind]') && el.tagName === 'SELECT') { setPath(el.dataset.bind, el.value); render(); }
   if (el.matches('[data-act="file"]')) uploadFile(el.files && el.files[0]);
 });
+// ---------- email code sign-in ----------
+const lastEmail = () => { try { return localStorage.getItem('aq.adminEmail') || ''; } catch { return ''; } };
+async function sendCode(email) {
+  S.signOk = false;
+  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: location.origin + '/admin' } });
+  if (error) {
+    const m = String(error.message || '');
+    S.signMsg = /rate|seconds|too many/i.test(m) ? 'Too many codes requested. Please wait a minute, then try again.'
+      : /signups not allowed|not found|invalid/i.test(m) ? 'That email isn’t an AQ Times admin account.'
+      : 'Couldn’t send the code. Please try again.';
+    render(); return false;
+  }
+  try { localStorage.setItem('aq.adminEmail', email); } catch {}
+  S.codeEmail = email; S.resendAt = Date.now() + 60000; S.signMsg = ''; render();
+  setTimeout(() => $('#otp') && $('#otp').focus(), 50);
+  clearInterval(S.resendTimer);
+  // count down on the resend button only, so a half-typed code is never wiped
+  S.resendTimer = setInterval(() => {
+    const b = document.querySelector('[data-act="code-resend"]');
+    if (!S.codeEmail || S.session || !b) return clearInterval(S.resendTimer);
+    const wait = Math.max(0, Math.ceil((S.resendAt - Date.now()) / 1000));
+    b.disabled = wait > 0; b.textContent = wait ? `Send a new code in ${wait}s` : 'Send a new code';
+    if (!wait) clearInterval(S.resendTimer);
+  }, 1000);
+  return true;
+}
 document.addEventListener('submit', async (e) => {
+  if (e.target.id === 'signin-code') {
+    e.preventDefault();
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Sending…';
+    await sendCode($('#em').value.trim().toLowerCase());
+    return;
+  }
+  if (e.target.id === 'verify-code') {
+    e.preventDefault();
+    const token = $('#otp').value.replace(/\D/g, '');
+    if (token.length < 6) { S.signOk = false; S.signMsg = 'Type the code from the email.'; render(); return; }
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Checking…';
+    const { error } = await sb.auth.verifyOtp({ email: S.codeEmail, token, type: 'email' });
+    if (error) { S.signOk = false; S.signMsg = /expired/i.test(error.message) ? 'That code has expired. Send a new one.' : 'That code didn’t work. Check it and try again.'; render(); }
+    return;
+  }
   if (e.target.id !== 'signin') return;
   e.preventDefault();
   const email = $('#em').value.trim(), password = $('#pw').value;
@@ -477,7 +541,11 @@ document.addEventListener('click', async (e) => {
     case 'pw': { const v = $('#pwIn').value; if (v.length < 8) return toast('Use at least 8 characters'); const { error } = await sb.auth.updateUser({ password: v }); if (!fail(error)) { $('#pwIn').value = ''; toast('Password changed ✓'); } break; }
     case 'pw-recover': { const v = $('#pwNew').value; if (v.length < 8) { S.signMsg = 'Use at least 8 characters'; render(); return; } const { error } = await sb.auth.updateUser({ password: v }); if (error) { S.signMsg = error.message; render(); } else { S.recovery = false; history.replaceState(null, '', '/admin'); await boot(); toast('Password saved ✓'); } break; }
     case 'forgot': { const email = ($('#em') && $('#em').value.trim()) || ''; if (!email) { S.signMsg = 'Type your email above first.'; render(); return; } await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + '/admin' }); S.signMsg = 'If that email is an admin account, a reset link is on its way.'; render(); break; }
-    case 'signout': await sb.auth.signOut(); S.session = null; S.admin = false; render(); break;
+    case 'signout': await sb.auth.signOut(); S.session = null; S.admin = false; S.codeEmail = ''; render(); break;
+    case 'pw-mode': S.pwMode = true; S.signMsg = ''; render(); break;
+    case 'code-mode': S.pwMode = false; S.signMsg = ''; render(); break;
+    case 'code-reset': S.codeEmail = ''; S.signMsg = ''; render(); break;
+    case 'code-resend': if (S.codeEmail && Date.now() >= S.resendAt) { if (await sendCode(S.codeEmail)) { S.signOk = true; S.signMsg = 'New code sent.'; render(); } } break;
     default: break;
   }
 });
@@ -490,7 +558,7 @@ async function boot() {
   const { data } = await sb.rpc('is_admin');
   S.admin = data === true;
   if (!S.admin) { S.signMsg = `${session.user.email} isn’t an AQ Times admin. Ask an admin to add you.`; await sb.auth.signOut(); S.session = null; render(); return; }
-  S.signMsg = '';
+  S.signMsg = ''; S.codeEmail = ''; S.pwMode = false;
   await loadAll(); render();
 }
 sb.auth.onAuthStateChange((event, session) => {

@@ -276,3 +276,5 @@ a.h{color:inherit;text-decoration:none;display:block}
 .seo-foot{padding:18px 16px calc(24px + var(--safe-b));margin-top:18px;border-top:3px solid var(--navy);font:400 12.5px/1.5 var(--sans);color:var(--muted)}
 .seo-foot a{color:var(--blue)}
 .seo-page .ctag{background:var(--navy);color:#fff}
+
+.linkbtn{border:0;background:none;padding:8px 0;font:700 13px var(--sans);color:var(--blue);text-decoration:underline;text-underline-offset:3px;align-self:center}
