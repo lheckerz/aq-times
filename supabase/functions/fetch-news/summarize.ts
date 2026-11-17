@@ -44,7 +44,10 @@ export const clean = (s: string) => (s || "")
   .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
   .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
   .replace(/&([a-z]+);/gi, (m, n) => ENT[n.toLowerCase()] ?? m)
-  .replace(/\s+/g, " ").trim();
+  .replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, "")
+  .replace(/\s+/g, " ")
+  .replace(/ ([.,;:!?)])/g, "$1")
+  .trim();
 
 const BOILER = /subscribe|sign ?up|newsletter|cookie|copyright|all rights reserved|advertis|follow us|download (the|our)|whatsapp channel|telegram channel|join our|read more|click here|terms of (use|service)|privacy policy|©|log ?in|register now|share this|related (stories|articles)|also read|you may also like|comments? (are|is) closed|photo:|pic:|image:|file pic|getty images|reuters photo/i;
 
@@ -98,7 +101,9 @@ export function summarizeHtml(html: string, title: string): Summary | null {
 
   // lead: publisher's own description when it is a real sentence, else the opening of the article
   const titleT = tokens(title);
-  let lead = ogDesc.length >= 60 && !BOILER.test(ogDesc) ? ogDesc : sentences(paras[0] || "").slice(0, 2).join(" ");
+  const opening = sentences(paras[0] || "").slice(0, 2).join(" ");
+  const descOk = ogDesc.length >= 60 && !BOILER.test(ogDesc) && !(/(\.\.\.|…)$/.test(ogDesc) && opening.length >= 60);
+  let lead = descOk ? ogDesc : opening || ogDesc;
   lead = shorten(lead, 300);
 
   // key points: score sentences by how central their words are, favour facts (numbers, names)
@@ -114,7 +119,7 @@ export function summarizeHtml(html: string, title: string): Summary | null {
     if (/\d/.test(s)) score *= 1.25;
     if (ws.some((w) => titleT.has(w))) score *= 1.3;
     if (i < 6) score *= 1.15;
-    if (/^["“]/.test(s) && s.length > 160) score *= 0.7; // long quotes read badly out of context
+    if (/^["“]/.test(s) && !/\b(said|says|added|told)\b/i.test(s)) score *= 0.55; // bare quotes read badly out of context
     sents.push({ s, i, score });
   });
   const leadT = tokens(lead);
@@ -143,6 +148,32 @@ export async function summarizeUrl(url: string, title: string): Promise<Summary 
     const html = (await r.text()).slice(0, 1_500_000);
     return summarizeHtml(html, title);
   } catch { return null; } finally { clearTimeout(t); }
+}
+
+// Fallback when the article page can't be read: the news search snippet for this headline
+export async function snippetFor(title: string): Promise<string> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const q = encodeURIComponent(`"${title.slice(0, 110)}"`);
+    const r = await fetch(`https://www.bing.com/news/search?q=${q}&format=rss&setlang=en-MY&cc=MY`, { signal: ctrl.signal, headers: { "User-Agent": UA, Accept: "application/rss+xml, text/xml" } });
+    if (!r.ok) return "";
+    const want = tokens(title);
+    for (const chunk of (await r.text()).split(/<item>|<item [^>]*>/).slice(1)) {
+      const get = (tag: string) => clean(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i").exec(chunk)?.[1] ?? "");
+      const d = get("description");
+      if (d.length >= 60 && similar(tokens(get("title")), want) && !similar(tokens(d), want)) return shorten(d, 300);
+    }
+    return "";
+  } catch { return ""; } finally { clearTimeout(t); }
+}
+
+// Page summary first, then the search snippet (summary only, no key points)
+export async function summarizeStory(url: string, title: string): Promise<Summary | null> {
+  const page = await summarizeUrl(url, title);
+  if (page) return page;
+  const snip = await snippetFor(title);
+  return snip ? { text: snip, image: "" } : null;
 }
 
 // A summary is "full" once it carries key points; admin-written stories are always left alone.

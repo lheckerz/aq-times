@@ -3,7 +3,7 @@
 // summary to the story (so everyone else gets it instantly via realtime), and returns it.
 // Each story is only fetched from its source once; admin-written stories are never touched.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { summarizeUrl, hasPoints } from "./summarize.ts";
+import { summarizeStory, hasPoints } from "./summarize.ts";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
   tried.push(id);
   await rest("settings?on_conflict=key", { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ key: "summary_tried", value: JSON.stringify(tried.slice(-500)) }) });
 
-  const res = await summarizeUrl(s.source_url, s.title);
+  const res = await summarizeStory(s.source_url, s.title);
   if (!res) return json({ summary: s.summary ?? "", image_url: s.image_url ?? "" });
   const patch: Record<string, string> = { summary: res.text };
   if (!s.image_url && res.image) patch.image_url = res.image;

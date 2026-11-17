@@ -7,7 +7,7 @@
 // Runs every 20 minutes (pg_cron) and on demand from the admin app.
 // Public calls are throttled to one run per 5 minutes; admins can refresh every 30 seconds.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { tokens, similar, canonicalUrl, clean, summarizeUrl, hasPoints } from "./summarize.ts";
+import { tokens, similar, canonicalUrl, clean, summarizeStory, hasPoints } from "./summarize.ts";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -143,7 +143,7 @@ async function enrich(limit: number): Promise<number> {
   const todo = rows.filter((s) => !hasPoints(s.summary) && !triedSet.has(s.id)).slice(0, limit);
   let done = 0;
   const work = async (s: Row) => {
-    const res = await summarizeUrl(s.source_url, s.title);
+    const res = await summarizeStory(s.source_url, s.title);
     tried.push(s.id);
     if (!res) return;
     const patch: Record<string, string> = { summary: res.text };
