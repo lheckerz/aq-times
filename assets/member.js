@@ -186,7 +186,8 @@ function render() {
   const today = state.stories.filter((s) => Date.now() - new Date(s.news_at || s.created_at).getTime() < 864e5).length;
   $('#glance').textContent = [`${today} NEW STORIES`, feat ? '1 FEATURED' : null, w ? `HIGH ${w.high}°` : null, w ? `RAIN ${w.rain ?? 0}%` : null].filter(Boolean).join(' · ');
   const v = state.tab === 'today' ? todayView() : state.tab === 'ann' ? updatesView() : state.tab === 'news' ? newsView() : meView();
-  $('#view').innerHTML = v;
+  // the server already rendered the front page for search engines; keep it until live data arrives
+  if (state.loaded || !$('#view').dataset.ssr || state.tab !== 'today') { $('#view').innerHTML = v; delete $('#view').dataset.ssr; }
   $('#tabs').innerHTML = [['today', 'Today'], ['ann', 'Updates'], ['news', 'News'], ['me', 'Me']].map(([k, l]) => `<button type="button" data-act="tab:${k}" aria-current="${state.tab === k ? 'page' : 'false'}"><span class="ic">${ICONS[k]}</span>${l}</button>`).join('');
   renderTicker();
 }

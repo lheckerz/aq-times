@@ -31,9 +31,59 @@
           "value": "camera=(self), geolocation=()"
         }
       ]
+    },
+    {
+      "source": "/shell",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    },
+    {
+      "source": "/admin",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ],
   "rewrites": [
+    {
+      "source": "/",
+      "destination": "/api/seo?page=home"
+    },
+    {
+      "source": "/news",
+      "destination": "/api/seo?page=news"
+    },
+    {
+      "source": "/news/:sport",
+      "destination": "/api/seo?page=news&sport=:sport"
+    },
+    {
+      "source": "/updates",
+      "destination": "/api/seo?page=updates"
+    },
+    {
+      "source": "/updates/:slug",
+      "destination": "/api/seo?page=update&slug=:slug"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/seo?page=sitemap"
+    },
+    {
+      "source": "/feed.xml",
+      "destination": "/api/seo?page=feed"
+    },
+    {
+      "source": "/llms.txt",
+      "destination": "/api/seo?page=llms"
+    },
     {
       "source": "/share.png",
       "has": [
@@ -49,5 +99,11 @@
       "source": "/share.png",
       "destination": "/share-wide.png"
     }
-  ]
+  ],
+  "functions": {
+    "api/seo.js": {
+      "includeFiles": "shell.html",
+      "maxDuration": 15
+    }
+  }
 }

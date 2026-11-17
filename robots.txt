@@ -1,0 +1,46 @@
+# The AQ Times: search engines and AI assistants are welcome to read and cite the public pages.
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /shell
+
+# AI crawlers and assistants (explicitly allowed)
+User-agent: GPTBot
+Allow: /
+Disallow: /admin
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /admin
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /admin
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /admin
+
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /admin
+
+User-agent: Claude-User
+Allow: /
+Disallow: /admin
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /admin
+
+User-agent: Perplexity-User
+Allow: /
+Disallow: /admin
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://aqtimes.news/sitemap.xml
