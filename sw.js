@@ -1,6 +1,6 @@
 // The AQ Times service worker: makes the app installable and keeps the shell available offline.
-const CACHE = 'aq-times-v2';
-const SHELL = ['/', '/admin', '/assets/styles.css', '/assets/common.js', '/assets/member.js', '/assets/admin.js', '/manifest.webmanifest', '/icon-180.png', '/favicon.png'];
+const CACHE = 'aq-times-v3';
+const SHELL = ['/', '/admin', '/assets/styles.css', '/assets/common.js', '/assets/member.js', '/assets/admin.js', '/manifest.webmanifest', '/apple-touch-icon.png', '/icon-192.png', '/favicon-32.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
