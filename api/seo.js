@@ -37,7 +37,13 @@ const slugify = (t) => String(t || '').toLowerCase().normalize('NFKD').replace(/
 const updateUrl = (a) => `${SITE}/updates/${slugify(a.title)}-${a.id}`;
 const storyUrl = (s) => `${SITE}/#story-${s.id}`;
 const lead = (summary) => (String(summary || '').split('\n').map((l) => l.trim()).find((l) => l && !/^[•\-*]\s/.test(l)) || '');
-const firstSentence = (t, max = 160) => { const s = String(t || '').replace(/\s+/g, ' ').trim(); const m = /^(.{40,}?[.!?])\s/.exec(s); const out = m ? m[1] : s; return out.length > max ? out.slice(0, max - 1).replace(/\s\S*$/, '') + '…' : out; };
+// first sentence (not fooled by "No. 9", "Dr." or "U.S."), trimmed at a word boundary
+const firstSentence = (t, max = 160) => {
+  const s = String(t || '').replace(/\s+/g, ' ').trim();
+  const m = /^(.{40,}?(?<!\b(?:No|Nos|Mr|Mrs|Ms|Dr|St|Jr|vs|Datuk|Dato|[A-Z]))[.!?])\s/.exec(s);
+  const out = m ? m[1] : s;
+  return out.length > max ? out.slice(0, max - 1).replace(/\s\S*$/, '') + '…' : out;
+};
 
 async function db(path) {
   const r = await fetch(DB + path, { headers: { apikey: KEY, Accept: 'application/json' } });
