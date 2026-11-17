@@ -1,5 +1,5 @@
 // The AQ Times — admin app
-import { sb, esc, $, COVERS, BADGES, CATS, AREAS, visibleTo, fmtDay, feedWhen, sinceLabel, ctaHref, coverHTML, ICONS, registerSW } from './common.js';
+import { sb, esc, $, COVERS, BADGES, CATS, AREAS, visibleTo, fmtDay, feedWhen, sinceLabel, ctaHref, coverHTML, ICONS, registerSW, timeAgo } from './common.js';
 
 const blankDraft = () => ({ featured: false, tag: 'UPDATE', title: '', body: '', place: '', show_to: 'Everyone', cta_label: '', cta_action: 'whatsapp', cta_target: '', img_src: 'auto', img_url: '', img_checked: false, cover_word: '', cover_color: 'blue', also_feed: true });
 const blankStory = () => ({ link: '', cat: 'bad', title: '', summary: '', source: '', source_url: '', image_url: '', show_to: 'Everyone', is_lead: false });
@@ -38,7 +38,7 @@ async function loadAll() {
   const since = new Date(Date.now() - 30 * 864e5).toISOString();
   const [a, s, t, f, st, ad, le] = await Promise.all([
     sb.from('announcements').select('*').order('featured', { ascending: false }).order('created_at', { ascending: false }),
-    sb.from('stories').select('*').order('created_at', { ascending: false }).limit(100),
+    sb.from('stories').select('*').neq('cat', 'johor').order('news_at', { ascending: false }).limit(150),
     sb.from('ticker').select('*').order('sort').order('created_at'),
     sb.from('feed').select('*').order('created_at', { ascending: false }).limit(15),
     sb.from('settings').select('*'),
@@ -292,7 +292,7 @@ function storyFields(d, prefix) {
     <label class="field">Summary<textarea data-bind="${prefix}.summary" rows="3" maxlength="800">${esc(d.summary)}</textarea></label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <label class="field">Show to${sel(prefix + '.show_to', d.show_to, SHOW)}</label>
-      <label class="field">Section${sel(prefix + '.cat', d.cat, [['bad', 'Badminton'], ['johor', 'Johor'], ['aq', 'AQ Smash'], ['opp', 'Opportunity']])}</label></div>
+      <label class="field">Section${sel(prefix + '.cat', d.cat, [['bad', 'Badminton'], ['pickleball', 'Pickleball'], ['tennis', 'Tennis'], ['aq', 'AQ Smash'], ['opp', 'Opportunity']])}</label></div>
     <label class="field">Source name<input data-bind="${prefix}.source" value="${esc(d.source)}" placeholder="e.g. New Straits Times"></label>
     <label class="field">Image link (optional)<input data-bind="${prefix}.image_url" value="${esc(d.image_url)}" inputmode="url"></label>
     ${d.image_url ? `<img src="${esc(d.image_url)}" alt="" style="width:100%;aspect-ratio:16/9;object-fit:cover;border:1.5px solid var(--navy)">` : ''}
@@ -301,7 +301,13 @@ function storyFields(d, prefix) {
 
 function newsView() {
   const n = S.newStory;
-  let h = `<h1 class="h1" style="font-size:24px">News desk</h1><p class="hint" style="margin:-6px 0 0">Edit any story and choose where it shows. Nothing goes live until you publish.</p>`;
+  const auto = (S.settings.auto_publish ?? 'true') !== 'false';
+  const lastRun = Number(S.settings.news_last_run || 0);
+  let h = `<h1 class="h1" style="font-size:24px">News desk</h1><p class="hint" style="margin:-6px 0 0">AQ collects Johor and Malaysia badminton, pickleball and tennis news every 20 minutes. Edit, unpublish or skip anything.</p>`;
+  h += `<div class="box2"><div class="cap">AUTO NEWS</div>
+    <button type="button" class="switch" role="switch" aria-checked="${auto}" data-act="auto-toggle" style="border-top:0"><span><span style="display:block">Publish new stories automatically</span><span class="hint" style="font-size:12px">${auto ? 'New stories go live straight away.' : 'New stories wait here for you to publish.'}</span></span><span class="tr"></span></button>
+    <button type="button" class="btn blue" data-act="fetch-now" ${S.fetching ? 'disabled' : ''}>${S.fetching ? 'Checking…' : 'Check for news now'}</button>
+    <div class="hint">${lastRun ? 'Last checked ' + timeAgo(lastRun) + '.' : 'Not checked yet.'}</div></div>`;
   h += `<div class="box2"><div class="cap">ADD A STORY FROM A LINK</div>
     <div style="display:grid;grid-template-columns:1fr auto;gap:8px"><label class="field"><span class="sr">Article link</span><input data-bind="newStory.link" value="${esc(n.link)}" placeholder="Paste a news link" inputmode="url"></label>
     <button type="button" class="btn blue sm" style="width:auto;min-height:48px" data-act="read-link">Read it</button></div>
@@ -312,10 +318,12 @@ function newsView() {
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px"><button type="button" class="btn" data-act="story-update">Save</button><button type="button" class="btn ghost" data-act="story-cancel">Cancel</button></div></div></article>`;
     const pend = s.status === 'pending', pub = s.status === 'published';
     return `<article class="acard"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="ctag" style="background:${t.bg};color:${t.fg}">${t.label}</span>
-      <span class="status" style="color:${pend ? 'var(--blue)' : pub ? 'var(--green-ink)' : 'var(--muted)'}">${pend ? '● Waiting for review' : pub ? '● Live in app' : '○ Skipped'}</span>${s.is_lead ? '<span class="badge" style="background:var(--navy);color:var(--green)">LEAD</span>' : ''}</div>
-      <div class="tt">${esc(s.title)}</div><div class="mm">${esc(s.summary)}</div><div class="mm">${esc(s.source || 'No source')} · Shown to <b style="color:var(--navy)">${esc(s.show_to)}</b></div>
+      ${s.is_johor ? '<span class="badge" style="background:var(--green);color:var(--navy);border:1.5px solid var(--navy)">JOHOR</span>' : ''}${s.auto ? '<span class="badge" style="background:var(--paper);color:var(--muted);border:1.5px solid var(--line)">AUTO</span>' : ''}
+      <span class="status" style="color:${pend ? 'var(--blue)' : pub ? 'var(--green-ink)' : 'var(--muted)'}">${pend ? '● Waiting for review' : pub ? '● Live in app' : '○ Skipped'}</span>${s.is_lead ? '<span class="badge" style="background:var(--navy);color:var(--green)">LEAD</span>' : ''}<span class="hint" style="font-size:11px">${timeAgo(s.news_at || s.created_at)}</span></div>
+      <div class="tt">${esc(s.title)}</div>${s.summary ? `<div class="mm">${esc(s.summary)}</div>` : ''}<div class="mm">${s.source_url ? `<a href="${esc(s.source_url)}" target="_blank" rel="noopener">${esc(s.source || 'Source')} ↗</a>` : esc(s.source || 'No source')} · Shown to <b style="color:var(--navy)">${esc(s.show_to)}</b></div>
       <div class="acts"><button type="button" class="btn blue sm" data-act="story-edit:${s.id}">Edit</button>
       <button type="button" class="btn ${pend ? '' : 'ghost'} sm" data-act="story-status:${s.id}:${pend ? 'published' : pub ? 'pending' : 'pending'}">${pend ? 'Publish' : pub ? 'Unpublish' : 'Restore'}</button>
+      ${pub && !s.is_lead ? `<button type="button" class="btn ghost sm" data-act="story-lead:${s.id}">Make lead</button>` : ''}
       ${pend ? `<button type="button" class="btn ghost sm" data-act="story-status:${s.id}:skipped">Skip</button>` : ''}
       <button type="button" class="btn ghost sm" data-act="story-del:${s.id}" aria-label="Delete story">×</button></div></article>`;
   }).join('');
@@ -439,6 +447,22 @@ document.addEventListener('click', async (e) => {
     case 'story-cancel': S.storyEdit = null; S.storyDraft = null; render(); break;
     case 'story-update': { const d = S.storyDraft; const { error } = await sb.from('stories').update({ title: d.title, summary: d.summary, show_to: d.show_to, cat: d.cat, source: d.source, image_url: d.image_url, is_lead: !!d.is_lead }).eq('id', S.storyEdit); if (!fail(error)) { await learn('edit', 'story:' + S.storyEdit); S.storyEdit = null; S.storyDraft = null; await refresh(); toast('Story updated ✓'); } break; }
     case 'story-status': setStory(id, { status: a2 }, a2 === 'published' ? 'Story published ✓' : a2 === 'skipped' ? 'Story skipped' : 'Back in review', a2 === 'published' ? 'publish' : a2 === 'skipped' ? 'skip' : 'edit'); break;
+    case 'story-lead': setStory(id, { is_lead: true }, 'Now the lead story ✓', 'edit'); break;
+    case 'auto-toggle': {
+      const next = (S.settings.auto_publish ?? 'true') === 'false' ? 'true' : 'false';
+      const { error } = await sb.from('settings').upsert({ key: 'auto_publish', value: next });
+      if (!fail(error)) { await refresh(); toast(next === 'true' ? 'New stories will go live automatically' : 'New stories will wait for you'); }
+      break;
+    }
+    case 'fetch-now': {
+      S.fetching = true; render();
+      const { data, error } = await sb.functions.invoke('fetch-news', { body: {} });
+      S.fetching = false;
+      if (error || !data) { toast('Couldn’t check right now'); render(); break; }
+      await refresh();
+      toast(data.skipped ? 'Checked moments ago. Try again in ' + data.next_in_s + 's' : (data.inserted ? data.inserted + ' new stor' + (data.inserted === 1 ? 'y' : 'ies') + ' added ✓' : 'No new stories right now'));
+      break;
+    }
     case 'story-del': if (confirm('Delete this story?')) { const { error } = await sb.from('stories').delete().eq('id', id); if (!fail(error)) { await refresh(); toast('Story deleted'); } } break;
     case 'tick-add': { const v = $('#tickIn').value.trim(); if (!v) return toast('Type a headline first'); const { error } = await sb.from('ticker').insert({ text: v, sort: S.ticker.length + 1 }); if (!fail(error)) { await refresh(); toast('Added to ticker ✓'); } break; }
     case 'tick-del': { const { error } = await sb.from('ticker').delete().eq('id', id); if (!fail(error)) { await refresh(); toast('Headline removed'); } break; }

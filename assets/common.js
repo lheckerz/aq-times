@@ -27,6 +27,8 @@ export const BADGES = {
 export const CATS = {
   aq: { label: 'AQ SMASH', bg: '#43A055', fg: '#12263F', name: 'AQ Smash' },
   bad: { label: 'BADMINTON', bg: '#12263F', fg: '#FFFFFF', name: 'Badminton' },
+  pickleball: { label: 'PICKLEBALL', bg: '#21558A', fg: '#FFFFFF', name: 'Pickleball' },
+  tennis: { label: 'TENNIS', bg: '#FFFFFF', fg: '#12263F', name: 'Tennis' },
   johor: { label: 'JOHOR', bg: '#FFFFFF', fg: '#12263F', name: 'Johor' },
   opp: { label: 'OPPORTUNITY', bg: '#DDF1E2', fg: '#1F5E2D', name: 'Opportunity' },
 };
@@ -61,6 +63,16 @@ export function feedWhen(d) {
   const t = new Date(d);
   const today = new Date().toLocaleDateString('en-CA', { timeZone: KL });
   return t.toLocaleDateString('en-CA', { timeZone: KL }) === today ? fmtTime(t) : fmtDay(t);
+}
+
+export function timeAgo(d) {
+  const m = Math.max(0, Math.round((Date.now() - new Date(d).getTime()) / 60000));
+  if (m < 1) return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.round(m / 60);
+  if (h < 24) return h + 'h ago';
+  const dd = Math.round(h / 24);
+  return dd < 7 ? dd + 'd ago' : fmtDay(d);
 }
 
 // Where a call-to-action button goes

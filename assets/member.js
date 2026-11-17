@@ -1,16 +1,16 @@
 // The AQ Times — member app
-import { sb, esc, $, BADGES, CATS, AREAS, visibleTo, fmtDateLong, sinceLabel, feedWhen, ctaHref, hasButton, coverHTML, thumbHTML, ICONS, registerSW } from './common.js';
+import { sb, esc, $, BADGES, CATS, AREAS, visibleTo, fmtDateLong, sinceLabel, feedWhen, ctaHref, hasButton, coverHTML, thumbHTML, ICONS, registerSW, timeAgo } from './common.js';
 
 const LS = { get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
 
 const state = {
   tab: 'today', seg: 'all', area: LS.get('aq.area', 'Johor Bahru'), seen: LS.get('aq.seen', {}), open: {},
-  anns: [], stories: [], ticker: [], feed: [], settings: {}, wx: null, newFeedId: null, tick: 0, loaded: false,
+  anns: [], stories: [], ticker: [], feed: [], settings: {}, wx: null, newFeedId: null, newStories: new Set(), tick: 0, loaded: false,
 };
 
 // ---------- data ----------
 async function loadAnns() { const { data } = await sb.from('announcements').select('*').eq('live', true).order('created_at', { ascending: false }); state.anns = data || []; }
-async function loadStories() { const { data } = await sb.from('stories').select('*').eq('status', 'published').order('published_at', { ascending: false }).limit(40); state.stories = data || []; }
+async function loadStories() { const { data } = await sb.from('stories').select('*').eq('status', 'published').neq('cat', 'johor').order('news_at', { ascending: false }).limit(80); state.stories = data || []; }
 async function loadTicker() { const { data } = await sb.from('ticker').select('*').order('sort').order('created_at'); state.ticker = data || []; }
 async function loadFeed() { const { data } = await sb.from('feed').select('*').order('created_at', { ascending: false }).limit(20); state.feed = data || []; }
 async function loadSettings() { const { data } = await sb.from('settings').select('*'); state.settings = Object.fromEntries((data || []).map((r) => [r.key, r.value])); }
@@ -75,7 +75,9 @@ function ctaButton(a, cls = 'btn') {
 }
 const badge = (a) => { const b = BADGES[a.tag] || BADGES.UPDATE; return `<span class="badge" style="background:${b.bg};color:${b.fg}">${b.label}</span>`; };
 const catTag = (c) => { const t = CATS[c] || CATS.bad; return `<span class="ctag" style="background:${t.bg};color:${t.fg}">${t.label}</span>`; };
-const srcLine = (s) => s.source ? `<div class="src">${s.source_url ? `<a href="${esc(s.source_url)}" target="_blank" rel="noopener">${esc(s.source)} ↗</a>` : esc(s.source)}</div>` : '';
+const srcLine = (s) => `<div class="src">${s.source ? (s.source_url ? `<a href="${esc(s.source_url)}" target="_blank" rel="noopener">${esc(s.source)} ↗</a>` : esc(s.source)) : ''}<span class="ago">${timeAgo(s.news_at || s.published_at || s.created_at)}</span></div>`;
+const chips = (s) => `<span class="chip-row">${catTag(s.cat)}${s.is_johor ? '<span class="jb">JOHOR</span>' : ''}${state.newStories.has(s.id) ? '<span class="new">● NEW</span>' : ''}</span>`;
+const headline = (s, tag = 'h3') => s.source_url ? `<a class="h" href="${esc(s.source_url)}" target="_blank" rel="noopener"><${tag}>${esc(s.title)}</${tag}></a>` : `<${tag}>${esc(s.title)}</${tag}>`;
 
 // ---------- views ----------
 function views() {
@@ -84,22 +86,24 @@ function views() {
   const feat = anns.find((a) => a.featured) || anns.find((a) => a.tag !== 'OPPORTUNITY') || null;
   const board = anns.filter((a) => a !== feat);
   const stories = state.stories.filter((s) => visibleTo(s.show_to, area));
-  const lead = stories.find((s) => s.is_lead) || stories[0];
-  const rest = stories.filter((s) => s !== lead);
+  const fresh = (s) => Date.now() - new Date(s.published_at || s.news_at || s.created_at).getTime() < 864e5;
+  const lead = stories.find((s) => s.is_lead && fresh(s)) || stories.find((s) => s.is_johor) || stories[0];
+  const others = stories.filter((s) => s !== lead);
+  const rest = others.filter((s) => s.is_johor).concat(others.filter((s) => !s.is_johor));
   return { anns, feat, board, stories, lead, rest };
 }
 
 function todayView() {
   const { feat, board, lead, rest } = views();
-  const seconds = rest.slice(0, 2), more = rest.slice(2, 5);
+  const seconds = rest.slice(0, 2), more = rest.slice(2, 10);
   let h = '<div class="row-a">';
-  h += '<article class="lead">' + label('Top stories of the day');
+  h += '<article class="lead">' + label('Top sports stories');
   if (lead) {
-    h += `<h2>${esc(lead.title)}</h2>${lead.image_url ? `<img src="${esc(lead.image_url)}" alt="" loading="lazy">` : ''}<p>${esc(lead.summary)}</p>${srcLine(lead)}`;
+    h += `<div style="margin-top:8px">${chips(lead)}</div>${headline(lead, 'h2')}${lead.image_url ? `<img src="${esc(lead.image_url)}" alt="" loading="lazy">` : ''}${lead.summary ? `<p>${esc(lead.summary)}</p>` : ''}${srcLine(lead)}`;
   } else h += '<p>No stories yet today.</p>';
   h += '</article>' + weatherCard() + '</div>';
   if (seconds.length) {
-    h += '<div class="row-b">' + seconds.map((s, i) => `<article><div class="no">NO. ${i + 2}</div><h3>${esc(s.title)}</h3><p>${esc(s.summary)}</p>${srcLine(s)}</article>`).join('') + '</div>';
+    h += '<div class="row-b">' + seconds.map((s, i) => `<article class="story" style="padding:0;border:0"><div class="no">NO. ${i + 2}${s.is_johor ? ' · JOHOR' : ''}</div>${headline(s)}${s.summary ? `<p>${esc(s.summary)}</p>` : ''}${srcLine(s)}</article>`).join('') + '</div>';
   }
   if (feat) {
     h += label('From AQ Smash', 'blue');
@@ -115,8 +119,9 @@ function todayView() {
   h += `<div class="one"><div class="k"><i></i>TODAY'S ONE THING</div><div class="v">${esc(state.settings.one_thing || '')}</div></div>`;
   h += '</div></div>';
   if (more.length) {
-    h += label('More in Johor & badminton', 'navy');
-    h += more.map((s, i) => `<article class="num"><span class="n">${i + 1}</span><div><h3>${esc(s.title)}</h3><p>${esc(s.summary)}</p>${srcLine(s)}</div></article>`).join('');
+    h += label('More sports news', 'navy');
+    h += more.map((s, i) => `<article class="num story" style="padding:10px 0"><span class="n">${i + 1}</span><div style="min-width:0">${chips(s)}${headline(s)}${s.summary ? `<p>${esc(s.summary)}</p>` : ''}${srcLine(s)}</div></article>`).join('');
+    h += `<button type="button" class="btn ghost sm" style="margin-top:12px" data-act="tab:news">See all sports news</button>`;
   }
   return h + '<div style="height:18px"></div>';
 }
@@ -145,14 +150,14 @@ function updatesView() {
 }
 
 function newsView() {
-  const area = state.area;
-  const list = views().stories
-    .map((s) => ({ s, near: s.show_to !== 'Everyone' }))
-    .sort((x, y) => (y.near - x.near))
-    .filter(({ s }) => state.seg === 'all' || s.cat === state.seg);
-  let h = `<div class="seg" role="tablist">${[['all', 'All'], ['bad', 'Badminton'], ['johor', 'Johor']].map(([k, l]) => `<button type="button" role="tab" aria-selected="${state.seg === k}" data-act="seg:${k}">${l}</button>`).join('')}</div>`;
-  h += list.length ? list.map(({ s, near }) => `<article class="story"><div>${catTag(s.cat)}${near ? `<span class="near">NEAR YOU · ${esc(area.toUpperCase())}</span>` : ''}</div>
-    <h3>${esc(s.title)}</h3>${s.image_url ? `<img src="${esc(s.image_url)}" alt="" loading="lazy">` : ''}<p>${esc(s.summary)}</p>${srcLine(s)}</article>`).join('') : '<p class="p">No stories in this section yet.</p>';
+  const list = views().stories.filter((s) => state.seg === 'all' || s.cat === state.seg);
+  const jb = list.filter((s) => s.is_johor), rest = list.filter((s) => !s.is_johor);
+  const card = (s) => `<article class="story">${chips(s)}${headline(s)}${s.image_url ? `<img src="${esc(s.image_url)}" alt="" loading="lazy">` : ''}${s.summary ? `<p>${esc(s.summary)}</p>` : ''}${srcLine(s)}</article>`;
+  let h = `<div class="seg" role="tablist">${[['all', 'All'], ['bad', 'Badminton'], ['pickleball', 'Pickleball'], ['tennis', 'Tennis']].map(([k, l]) => `<button type="button" role="tab" aria-selected="${state.seg === k}" data-act="seg:${k}">${l}</button>`).join('')}</div>`;
+  h += `<p class="hint" style="margin:8px 0 0">Updates automatically, all day. ${list.length} stories from the last week.</p>`;
+  if (!list.length) h += '<p class="p">No stories in this section yet. New ones appear here as soon as they\u2019re published.</p>';
+  if (jb.length) h += '<div class="group">IN JOHOR</div>' + jb.map(card).join('');
+  if (rest.length) h += `<div class="group">${jb.length ? 'MALAYSIA &amp; BEYOND' : 'LATEST'}</div>` + rest.map(card).join('');
   h += label('Live feed');
   h += state.feed.map((f) => { const t = CATS[f.cat] || CATS.aq; return `<div class="feed ${f.id === state.newFeedId ? 'fade' : ''}"><span class="w">${feedWhen(f.created_at)}</span><div style="flex:1;min-width:0"><span class="ctag" style="background:${t.bg};color:${t.fg}">${t.label}</span>${f.id === state.newFeedId ? '<span class="new">● NEW</span>' : ''}<div class="x">${esc(f.text)}</div></div></div>`; }).join('');
   return h + '<div style="height:18px"></div>';
@@ -174,7 +179,8 @@ function render() {
   $('#dateLong').textContent = fmtDateLong();
   const { feat, board } = views();
   const w = state.wx;
-  $('#glance').textContent = [feat ? '1 FEATURED' : null, `${board.length} ON THE BOARD`, w ? `HIGH ${w.high}°` : null, w ? `RAIN ${w.rain ?? 0}%` : null].filter(Boolean).join(' · ');
+  const today = state.stories.filter((s) => Date.now() - new Date(s.news_at || s.created_at).getTime() < 864e5).length;
+  $('#glance').textContent = [`${today} NEW STORIES`, feat ? '1 FEATURED' : null, w ? `HIGH ${w.high}°` : null, w ? `RAIN ${w.rain ?? 0}%` : null].filter(Boolean).join(' · ');
   const v = state.tab === 'today' ? todayView() : state.tab === 'ann' ? updatesView() : state.tab === 'news' ? newsView() : meView();
   $('#view').innerHTML = v;
   $('#tabs').innerHTML = [['today', 'Today'], ['ann', 'Updates'], ['news', 'News'], ['me', 'Me']].map(([k, l]) => `<button type="button" data-act="tab:${k}" aria-current="${state.tab === k ? 'page' : 'false'}"><span class="ic">${ICONS[k]}</span>${l}</button>`).join('');
@@ -215,7 +221,7 @@ document.addEventListener('change', async (e) => {
 function subscribe() {
   sb.channel('aq-times-public')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, async () => { await loadAnns(); render(); })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'stories' }, async () => { await loadStories(); render(); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'stories' }, async (p) => { if (p.eventType === 'INSERT' || (p.eventType === 'UPDATE' && p.old && p.old.status !== 'published')) state.newStories.add(p.new.id); await loadStories(); render(); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ticker' }, async () => { await loadTicker(); renderTicker(); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, async () => { await loadSettings(); render(); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'feed' }, async (p) => { await loadFeed(); if (p.eventType === 'INSERT') state.newFeedId = p.new.id; render(); })
@@ -240,6 +246,7 @@ async function checkAdmin() {
   checkAdmin();
   setInterval(() => { state.tick++; renderTicker(); }, 4500);
   setInterval(() => { $('#dateLong').textContent = fmtDateLong(); }, 60000);
+  setInterval(() => { loadStories().then(render); }, 5 * 60000); // backup refresh if live updates drop
   setInterval(() => loadWeather().then(render), 30 * 60000);
   registerSW();
 })();
