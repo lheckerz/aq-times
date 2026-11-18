@@ -78,6 +78,7 @@ function page({ title, desc, path, body, json, robots = 'index, follow, max-imag
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
 <meta name="robots" content="${robots}">
+<meta name="google-site-verification" content="UZJSIST-V1k7BvRyuqtWC33ZhHr2SMKAnRGZxHd-6U4" />
 <link rel="canonical" href="${esc(url)}">
 <meta name="theme-color" content="#12263F">
 <meta property="og:type" content="website">
