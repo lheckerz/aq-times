@@ -245,6 +245,7 @@ async function openStory(id, push = true) {
   const first = state.story !== id;
   state.story = id;
   if (push) history.pushState({ story: id }, '', '#story-' + id);
+  if (first) { const st = findStory(id); try { (window.dataLayer = window.dataLayer || []).push({ event: 'story_view', story_id: id, story_title: st && st.title, story_sport: st && st.cat, story_source: st && st.source }); } catch {} }
   state.storyLoading = false;
   renderSheet();
   if (first) { const b = $('#sheetBody'); if (b) { b.scrollTop = 0; } const back = $('#sheet .back'); if (back) back.focus({ preventScroll: true }); }

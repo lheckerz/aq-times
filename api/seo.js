@@ -74,6 +74,15 @@ function page({ title, desc, path, body, json, robots = 'index, follow, max-imag
 <html lang="en-MY">
 <head>
 <meta charset="utf-8">
+<!-- Google Tag Manager (GA4 is configured inside the container) -->
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  dataLayer.push({'gtm.start': new Date().getTime(), event: 'gtm.js'});
+</script>
+<script async src="https://www.googletagmanager.com/gtm.js?id=GTM-MTJ7B8WP"></script>
+<!-- End Google Tag Manager -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
@@ -101,6 +110,7 @@ function page({ title, desc, path, body, json, robots = 'index, follow, max-imag
 ${(json || []).map(ld).join('\n')}
 </head>
 <body>
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-MTJ7B8WP" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <div class="app seo-page">
   <main class="scroll">
     <header class="mast">
