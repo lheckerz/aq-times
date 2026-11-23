@@ -24,8 +24,44 @@ const ORG = {
   logo: { '@type': 'ImageObject', url: SITE + '/icon-512.png', width: 512, height: 512 },
   description: 'The notice board and sports news page of the AQ Smash community in Johor Bahru, Malaysia.',
   areaServed: [{ '@type': 'City', name: 'Johor Bahru' }, { '@type': 'State', name: 'Johor' }, { '@type': 'Country', name: 'Malaysia' }],
-  parentOrganization: { '@type': 'SportsOrganization', name: 'AQ Smash' },
+  parentOrganization: { '@id': SITE + '/#aqsmash' },
+  knowsAbout: ['Badminton', 'Pickleball', 'Tennis', 'Johor Bahru sports', 'Malaysian badminton'],
+  contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', telephone: '+60185959588', areaServed: 'MY', availableLanguage: ['en', 'ms', 'zh'] },
 };
+const AQSMASH = {
+  '@type': 'SportsOrganization', '@id': SITE + '/#aqsmash', name: 'AQ Smash', url: 'https://aqsmash.com/', sameAs: ['https://aqsmash.com/'],
+  sport: ['Badminton', 'Pickleball', 'Tennis'], description: 'Racket sports community, events and retail in Johor Bahru, Malaysia, home of the AmpQuartz Badminton Club.',
+  location: { '@type': 'Place', name: 'Mount Austin, Johor Bahru', address: { '@type': 'PostalAddress', addressLocality: 'Johor Bahru', addressRegion: 'Johor', addressCountry: 'MY' } },
+};
+const WA = '60185959588';
+const waLink = (msg) => `https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;
+const VENUES = ['Austin Sports Hub', 'Tiara Sports', 'Bubble Sports', 'Rally 7'];
+// questions people (and AI assistants) ask; shown on the page and marked up as FAQPage
+const FAQ = {
+  about: [
+    ['What is The AQ Times?', 'The AQ Times (aqtimes.news) is the free notice board and sports news page of the AQ Smash community in Johor Bahru, Malaysia. It shows official AQ Smash announcements plus badminton, pickleball and tennis news from Johor, Malaysia and Singapore, updated through the day with Johor stories first.'],
+    ['Who runs The AQ Times?', 'The AQ Times is published for the AQ Smash community. AQ Smash announcements are written by the AQ Smash team; news items are short summaries with the original outlet credited on each story.'],
+    ['How often is The AQ Times updated?', 'News is collected automatically several times an hour. AQ Smash announcements appear the moment the team posts them, and the app shows new stories live without refreshing.'],
+    ['What is AQ Smash?', 'AQ Smash is a racket sports community, events and retail brand in Johor Bahru, Malaysia, home of the AmpQuartz Badminton Club, with its flagship at Mount Austin.'],
+    ['How do I join AQ Smash or the AmpQuartz Badminton Club?', 'Message AQ Smash on WhatsApp at +60 18-595 9588. The team will share session times, membership and upcoming events.'],
+    ['Can I install The AQ Times as an app?', 'Yes. Open aqtimes.news on your phone and choose "Add to Home Screen" (iPhone) or "Install app" (Android). It works like an app and is free.'],
+  ],
+  badminton: [
+    ['Where can I play badminton in Johor Bahru?', `The AmpQuartz Badminton Club, part of AQ Smash, runs social badminton sessions in Johor Bahru at ${VENUES.slice(0, -1).join(', ')} and ${VENUES.at(-1)}. Message AQ Smash on WhatsApp at +60 18-595 9588 for session times.`],
+    ['Where can I find the latest Malaysian badminton news?', 'The AQ Times badminton page collects Malaysian, Johor and Singapore badminton news through the day, including BAM, BWF World Tour results and Malaysian shuttlers, with a short summary and key points for each story.'],
+    ['Is there a badminton community in Johor Bahru I can join?', 'Yes. AQ Smash and the AmpQuartz Badminton Club welcome players of all levels in Johor Bahru, from family and recreational players to competitive players. Message +60 18-595 9588 on WhatsApp to join.'],
+  ],
+  pickleball: [
+    ['Where can I find pickleball news in Malaysia?', 'The AQ Times pickleball page collects pickleball news from Johor, Malaysia and Singapore, including tournaments, new courts, clubs and the Malaysia Pickleball Association, with summaries and key points.'],
+    ['How do I find pickleball players in Johor Bahru?', 'Message the AQ Smash community on WhatsApp at +60 18-595 9588. AQ Smash is growing its racket sports community in Johor Bahru beyond badminton into pickleball and tennis.'],
+  ],
+  tennis: [
+    ['Where can I follow tennis news for Malaysian fans?', 'The AQ Times tennis page collects tennis news relevant to Malaysia and Singapore, including local players, ATP and WTA results and events in the region, with summaries and key points.'],
+    ['Is there a tennis community in Johor Bahru?', 'AQ Smash is growing its racket sports community in Johor Bahru into tennis. Message +60 18-595 9588 on WhatsApp to hear about sessions and events.'],
+  ],
+};
+const faqLd = (list) => ({ '@type': 'FAQPage', mainEntity: list.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) });
+const faqHtml = (list, heading = 'Questions people ask') => `<section class="seo-faq"><h2 class="seo-h2">${esc(heading)}</h2>${list.map(([q, a]) => `<details><summary><h3>${esc(q)}</h3></summary><p>${esc(a)}</p></details>`).join('')}</section>`;
 
 // ---------- helpers ----------
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -35,9 +71,17 @@ const day = (d) => new Date(d).toLocaleDateString('en-GB', { timeZone: TZ, day: 
 const longDate = () => new Date().toLocaleDateString('en-GB', { timeZone: TZ, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
 const slugify = (t) => String(t || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70) || 'update';
 const updateUrl = (a) => `${SITE}/updates/${slugify(a.title)}-${a.id}`;
-const storyUrl = (s) => `${SITE}/#story-${s.id}`;
-const lead = (summary) => (String(summary || '').split('\n').map((l) => l.trim()).find((l) => l && !/^[•\-*]\s/.test(l)) || '');
-// first sentence (not fooled by "No. 9", "Dr." or "U.S."), trimmed at a word boundary
+const sportSlug = (cat) => SLUG_OF[cat] || 'badminton';
+const storyPath = (s) => `/news/${sportSlug(s.cat)}/${slugify(s.title)}-${s.id}`;
+const storyUrl = (s) => SITE + storyPath(s);
+const lines = (summary) => String(summary || '').split('\n').map((l) => l.trim()).filter(Boolean);
+const lead = (summary) => (lines(summary).find((l) => !/^[•\-*]\s/.test(l)) || '');
+const points = (summary) => lines(summary).filter((l) => /^[•\-*]\s/.test(l)).map((l) => l.replace(/^[•\-*]\s+/, ''));
+const paras = (summary) => lines(summary).filter((l) => !/^[•\-*]\s/.test(l));
+// only stories with a real summary get indexed; the rest stay reachable but noindex
+const indexable = (s) => lead(s.summary).length >= 80;
+const sportName = (cat) => (SPORTS[sportSlug(cat)] || SPORTS.badminton).name;
+const iso = (d) => new Date(d).toISOString();// first sentence (not fooled by "No. 9", "Dr." or "U.S."), trimmed at a word boundary
 const firstSentence = (t, max = 160) => {
   const s = String(t || '').replace(/\s+/g, ' ').trim();
   const m = /^(.{40,}?(?<!\b(?:No|Nos|Mr|Mrs|Ms|Dr|St|Jr|vs|Datuk|Dato|[A-Z]))[.!?])\s/.exec(s);
@@ -67,8 +111,11 @@ function ctaHref(a) {
 }
 
 // ---------- page shell for the standalone pages ----------
-const NAV = [['/', 'Today'], ['/news/badminton', 'Badminton'], ['/news/pickleball', 'Pickleball'], ['/news/tennis', 'Tennis'], ['/updates', 'AQ Smash']];
-function page({ title, desc, path, body, json, robots = 'index, follow, max-image-preview:large, max-snippet:-1', image }) {
+const NAV = [['/', 'Today'], ['/news/badminton', 'Badminton'], ['/news/pickleball', 'Pickleball'], ['/news/tennis', 'Tennis'], ['/updates', 'AQ Smash'], ['/about', 'About']];
+const INDEX = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+// every page ends with a way into the community: search visitor -> AQ Smash member
+const joinBox = (msg = 'Hi AQ Smash! I found you on The AQ Times and would like to join.') => `<aside class="seo-join"><b>Play with the AQ Smash community</b><p>Social badminton sessions in Johor Bahru at ${esc(VENUES.join(', '))}, run by the AmpQuartz Badminton Club. Growing into pickleball and tennis too.</p><a class="btn" href="${esc(waLink(msg))}" rel="noopener">Join on WhatsApp</a></aside>`;
+function page({ title, desc, path, body, json, robots = INDEX, image, type = 'website', published, modified, section }) {
   const url = SITE + path;
   return `<!doctype html>
 <html lang="en-MY">
@@ -90,14 +137,19 @@ function page({ title, desc, path, body, json, robots = 'index, follow, max-imag
 <meta name="google-site-verification" content="UZJSIST-V1k7BvRyuqtWC33ZhHr2SMKAnRGZxHd-6U4" />
 <link rel="canonical" href="${esc(url)}">
 <meta name="theme-color" content="#12263F">
-<meta property="og:type" content="website">
+<meta property="og:type" content="${type}">
 <meta property="og:site_name" content="The AQ Times">
 <meta property="og:url" content="${esc(url)}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:image" content="${esc(image || SITE + '/share.png')}">
 <meta property="og:locale" content="en_MY">
-<meta name="twitter:card" content="summary_large_image">
+${published ? `<meta property="article:published_time" content="${esc(published)}">\n<meta property="article:modified_time" content="${esc(modified || published)}">\n` : ''}${section ? `<meta property="article:section" content="${esc(section)}">\n` : ''}<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(title)}">
+<meta name="twitter:description" content="${esc(desc)}">
+<meta name="geo.region" content="MY-01">
+<meta name="geo.placename" content="Johor Bahru">
+<link rel="alternate" type="text/plain" title="LLM summary" href="${SITE}/llms.txt">
 <link rel="alternate" type="application/rss+xml" title="The AQ Times" href="${SITE}/feed.xml">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/favicon.ico" sizes="48x48">
@@ -119,10 +171,10 @@ ${(json || []).map(ld).join('\n')}
       <div class="rule"></div>
       <nav class="seo-nav" aria-label="Sections">${NAV.map(([h, l]) => `<a href="${h}"${path === h ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>
     </header>
-    <div class="pad">${body}</div>
+    <div class="pad">${body}${joinBox()}</div>
     <footer class="seo-foot">
       <p><b>The AQ Times</b> is the notice board and sports news page of the AQ Smash community in Johor Bahru, Malaysia. News updates automatically through the day; AQ Smash announcements are posted by the AQ Smash team.</p>
-      <p><a href="/">Open the app</a> · <a href="/updates">AQ Smash updates</a> · <a href="/news">All sports news</a> · <a href="/feed.xml">RSS</a></p>
+      <p><a href="/">Open the app</a> · <a href="/updates">AQ Smash updates</a> · <a href="/news">All sports news</a> · <a href="/about">About &amp; FAQ</a> · <a href="/feed.xml">RSS</a></p>
     </footer>
   </main>
 </div>
@@ -133,8 +185,8 @@ ${(json || []).map(ld).join('\n')}
 const label = (t, sq = '') => `<div class="label"><span class="sq ${sq}"></span><span>${esc(t)}</span><span class="ln"></span></div>`;
 const storyItem = (s, h = 'h3') => {
   const l = lead(s.summary);
-  return `<article class="story"><span class="chip-row"><span class="ctag">${esc((SPORTS[SLUG_OF[s.cat]] || SPORTS.badminton).name.toUpperCase())}</span>${s.is_johor ? '<span class="jb">JOHOR</span>' : ''}</span>
-  <a class="h" href="/#story-${esc(s.id)}"><${h}>${esc(s.title)}</${h}></a>${l ? `<p class="teaser">${esc(firstSentence(l, 220))}</p>` : ''}
+  return `<article class="story"><span class="chip-row"><span class="ctag">${esc(sportName(s.cat).toUpperCase())}</span>${s.is_johor ? '<span class="jb">JOHOR</span>' : ''}</span>
+  <a class="h" href="${esc(storyPath(s))}" data-act="story:${esc(s.id)}"><${h}>${esc(s.title)}</${h}></a>${l ? `<p class="teaser">${esc(firstSentence(l, 220))}</p>` : ''}
   <div class="src"><span>${esc(s.source || 'News')}</span><span class="ago"><time datetime="${esc(new Date(s.news_at || s.created_at).toISOString())}">${esc(day(s.news_at || s.created_at))}</time></span></div></article>`;
 };
 const updateItem = (a) => `<article class="story"><span class="chip-row"><span class="ctag" style="background:#43A055;color:#12263F">${esc(a.tag || 'UPDATE')}</span></span>
@@ -155,9 +207,11 @@ async function home() {
   if (ups.length) h += label('From AQ Smash', 'blue') + ups.slice(0, 6).map(updateItem).join('') + `<p class="hint" style="margin-top:10px"><a href="/updates">All AQ Smash updates</a></p>`;
   const json = [
     { '@context': 'https://schema.org', '@graph': [
-      ORG,
-      { '@type': 'WebSite', '@id': SITE + '/#site', url: SITE + '/', name: 'The AQ Times', inLanguage: 'en-MY', publisher: { '@id': SITE + '/#org' } },
-      { '@type': 'ItemList', name: 'Top sports stories today', itemListElement: top.map((s, i) => ({ '@type': 'ListItem', position: i + 1, name: s.title })) },
+      ORG, AQSMASH,
+      { '@type': 'WebSite', '@id': SITE + '/#site', url: SITE + '/', name: 'The AQ Times', alternateName: ['AQ Times', 'aqtimes.news'], inLanguage: 'en-MY', publisher: { '@id': SITE + '/#org' } },
+      { '@type': 'WebPage', '@id': SITE + '/#home', url: SITE + '/', name: 'The AQ Times: Johor badminton, pickleball & tennis news and AQ Smash updates', isPartOf: { '@id': SITE + '/#site' }, about: { '@id': SITE + '/#aqsmash' },
+        dateModified: top[0] ? iso(top[0].news_at || top[0].created_at) : iso(Date.now()), speakable: { '@type': 'SpeakableSpecification', cssSelector: ['#view .story h2', '#view .story .teaser'] } },
+      { '@type': 'ItemList', name: 'Top sports stories today', itemListElement: top.map((s, i) => ({ '@type': 'ListItem', position: i + 1, url: storyUrl(s), name: s.title })) },
     ] },
   ];
   return shell
@@ -179,10 +233,15 @@ async function news(slug) {
   if (rest.length) h += `<div class="group">${jb.length ? 'MALAYSIA &amp; BEYOND' : 'LATEST'}</div>` + rest.map((s) => storyItem(s)).join('');
   if (!list.length) h += '<p class="p">No stories yet. New ones appear here through the day.</p>';
   h += `<p class="hint" style="margin-top:14px">Other sections: ${Object.entries(SPORTS).filter(([k]) => k !== slug).map(([k, v]) => `<a href="/news/${k}">${v.name}</a>`).join(' · ')}</p>`;
+  const faq = slug ? FAQ[slug] : FAQ.badminton.slice(0, 1).concat(FAQ.pickleball.slice(0, 1), FAQ.tennis.slice(0, 1));
+  h += faqHtml(faq);
+  const updated = list[0] ? iso(list[0].news_at || list[0].created_at) : iso(Date.now());
+  h = h.replace('</p>', ` <span class="muted">Last updated <time datetime="${updated}">${esc(day(updated))}</time>.</span></p>`);
   const json = [{ '@context': 'https://schema.org', '@graph': [
-    ORG,
-    { '@type': 'CollectionPage', '@id': SITE + path, url: SITE + path, name: title, description: desc, inLanguage: 'en-MY', isPartOf: { '@id': SITE + '/#site' }, about: { '@type': 'Thing', name: `${name} in Johor and Malaysia` },
-      mainEntity: { '@type': 'ItemList', itemListElement: list.slice(0, 30).map((s, i) => ({ '@type': 'ListItem', position: i + 1, name: s.title })) } },
+    ORG, AQSMASH,
+    { '@type': 'CollectionPage', '@id': SITE + path, url: SITE + path, name: title, description: desc, inLanguage: 'en-MY', isPartOf: { '@id': SITE + '/#site' }, about: { '@type': 'Thing', name: `${name} in Johor and Malaysia` }, dateModified: updated,
+      mainEntity: { '@type': 'ItemList', itemListElement: list.slice(0, 30).map((s, i) => ({ '@type': 'ListItem', position: i + 1, url: storyUrl(s), name: s.title })) } },
+    faqLd(faq),
     crumbs(sport ? [['The AQ Times', '/'], ['News', '/news'], [name, path]] : [['The AQ Times', '/'], ['News', '/news']]),
   ] }];
   return page({ title, desc, path, body: h, json });
@@ -200,11 +259,12 @@ async function updatesList() {
 }
 
 async function updateOne(slug) {
-  const id = (/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(slug || '') || [])[1];
+  const id = (UUID.exec(slug || '') || [])[1];
   if (!id) return null;
   const [a] = await db(`announcements?select=*&id=eq.${id}&live=eq.true&show_to=eq.Everyone`);
   if (!a) return null;
   const path = updateUrl(a).replace(SITE, '');
+  if (`/updates/${slug}` !== path) return { redirect: path };
   const href = ctaHref(a);
   const desc = firstSentence(a.body, 155);
   const img = a.img_url && /^https:\/\//.test(a.img_url) ? a.img_url : '';
@@ -221,11 +281,92 @@ async function updateOne(slug) {
       image: [img || SITE + '/share-wide.png'], author: { '@type': 'Organization', name: 'AQ Smash' }, publisher: { '@id': SITE + '/#org' },
       contentLocation: a.place ? { '@type': 'Place', name: a.place } : { '@type': 'City', name: 'Johor Bahru' } },
     crumbs([['The AQ Times', '/'], ['AQ Smash updates', '/updates'], [a.title, path]])] }];
-  return page({ title: `${a.title} | AQ Smash, The AQ Times`, desc, path, body: h, json, image: img || undefined });
+  return page({ title: `${a.title} | AQ Smash, The AQ Times`, desc, path, body: h, json, image: img || undefined, type: 'article', published: iso(a.created_at), modified: iso(a.updated_at || a.created_at), section: 'AQ Smash' });
+}
+
+const UUID = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+async function storyOne(sport, slug) {
+  const id = (UUID.exec(slug || '') || [])[1];
+  if (!id) return null;
+  const [s] = await db(`stories?select=id,cat,title,summary,source,source_url,news_at,created_at,published_at,is_johor,image_url&id=eq.${id}&status=eq.published`);
+  if (!s) return null;
+  const path = storyPath(s);
+  if (`/news/${sport}/${slug}` !== path) return { redirect: path };
+  const related = (await stories(s.cat, 14)).filter((x) => x.id !== s.id).slice(0, 6);
+  const l = lead(s.summary), pts = points(s.summary), more = paras(s.summary).slice(1);
+  const name = sportName(s.cat), at = s.news_at || s.created_at;
+  const img = s.image_url && /^https:\/\//.test(s.image_url) ? s.image_url : '';
+  const desc = l ? firstSentence(l, 155) : `${name} news: ${s.title}. Summary and key points on The AQ Times.`;
+  let h = `<article class="seo-article"><span class="chip-row"><span class="ctag">${esc(name.toUpperCase())}</span>${s.is_johor ? '<span class="jb">JOHOR</span>' : ''}</span>
+    <h1 class="seo-h1">${esc(s.title)}</h1>
+    <div class="byline">${s.source ? `<b>${esc(s.source)}</b><span>·</span>` : ''}<time datetime="${esc(iso(at))}">${esc(day(at))}</time></div>
+    ${img ? `<img class="seo-img" src="${esc(img)}" alt="${esc(s.title)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''}
+    <h2 class="seo-h2">Summary</h2>
+    ${l ? `<p class="sum">${esc(l)}</p>` + more.map((p) => `<p class="sum">${esc(p)}</p>`).join('') : '<p class="sum">A summary for this story is being prepared. Open it in the app for the latest.</p>'}
+    ${pts.length ? `<h2 class="seo-h2">Key points</h2><ul class="points">${pts.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
+    ${s.source ? `<p class="credit">Summary by The AQ Times based on reporting by ${esc(s.source)}, ${esc(day(at))}.</p>` : ''}
+    <p style="margin-top:14px"><a class="btn ghost sm" href="/#story-${esc(s.id)}">Open in The AQ Times app</a></p></article>`;
+  if (related.length) h += `<h2 class="seo-h2" style="margin-top:22px">More ${esc(name.toLowerCase())} news</h2>` + related.map((x) => storyItem(x)).join('');
+  h += `<p class="hint" style="margin-top:12px"><a href="/news/${sportSlug(s.cat)}">← All ${esc(name.toLowerCase())} news</a></p>`;
+  const json = [{ '@context': 'https://schema.org', '@graph': [ORG,
+    { '@type': 'NewsArticle', '@id': SITE + path + '#article', mainEntityOfPage: { '@type': 'WebPage', '@id': SITE + path }, url: SITE + path,
+      headline: String(s.title).slice(0, 110), description: desc, articleSection: name, inLanguage: 'en-MY',
+      datePublished: iso(at), dateModified: iso(s.published_at && new Date(s.published_at) > new Date(at) ? s.published_at : at), image: [img || SITE + '/share-wide.png'],
+      author: { '@type': 'Organization', name: s.source || 'The AQ Times' }, publisher: { '@id': SITE + '/#org' }, isPartOf: { '@id': SITE + '/#site' },
+      ...(s.source_url && /^https?:\/\//.test(s.source_url) && !/news\.google\.com/.test(s.source_url) ? { isBasedOn: s.source_url } : {}),
+      ...(l ? { abstract: l } : {}), ...(pts.length ? { articleBody: [l, ...pts].join(' ') } : {}),
+      about: [{ '@type': 'Thing', name }, ...(s.is_johor ? [{ '@type': 'Place', name: 'Johor, Malaysia' }] : [])],
+      speakable: { '@type': 'SpeakableSpecification', cssSelector: ['.seo-h1', '.sum', '.points'] } },
+    crumbs([['The AQ Times', '/'], ['News', '/news'], [name, `/news/${sportSlug(s.cat)}`], [s.title, path]])] }];
+  return page({ title: `${s.title} | ${name} News, The AQ Times`, desc, path, body: h, json, image: img || undefined, type: 'article', published: iso(at), modified: iso(s.published_at && new Date(s.published_at) > new Date(at) ? s.published_at : at), section: name,
+    robots: indexable(s) ? INDEX : 'noindex, follow' });
+}
+
+async function about() {
+  const title = 'About The AQ Times & AQ Smash, Johor Bahru | FAQ';
+  const desc = 'The AQ Times is the free sports news page and notice board of AQ Smash, the racket sports community in Johor Bahru, Malaysia. How it works, who runs it and how to join.';
+  let h = `<h1 class="seo-h1">About The AQ Times</h1>
+    <p class="p">The AQ Times is the free notice board and sports news page of <b>AQ Smash</b>, the racket sports community in Johor Bahru, Malaysia. It puts everything the community needs on one page: official AQ Smash announcements, plus badminton, pickleball and tennis news from Johor, Malaysia and Singapore, with Johor stories first.</p>
+    <h2 class="seo-h2">What you'll find</h2>
+    <ul class="points"><li><a href="/updates">AQ Smash updates</a>: events, sessions, tournaments and opportunities, posted by the AQ Smash team.</li>
+    <li><a href="/news/badminton">Badminton news</a>: BAM, BWF World Tour results, Malaysian and Singaporean shuttlers and Johor clubs.</li>
+    <li><a href="/news/pickleball">Pickleball news</a> and <a href="/news/tennis">tennis news</a> for players in Malaysia and Singapore.</li>
+    <li>A short summary and the key points of every story, with the original outlet credited.</li></ul>
+    <h2 class="seo-h2">About AQ Smash</h2>
+    <p class="p">AQ Smash is a racket sports community, events and retail brand in Johor Bahru with its flagship at Mount Austin. It is home of the AmpQuartz Badminton Club, which runs social badminton sessions at ${esc(VENUES.join(', '))}, and it is growing into pickleball and tennis.</p>
+    <p class="p">Contact: WhatsApp <a href="${esc(waLink('Hi AQ Smash! I found you on The AQ Times.'))}" rel="noopener">+60 18-595 9588</a> · Website <a href="https://aqsmash.com/" rel="noopener">aqsmash.com</a></p>`;
+  h += faqHtml(FAQ.about.concat(FAQ.badminton.slice(0, 1)), 'Frequently asked questions');
+  const json = [{ '@context': 'https://schema.org', '@graph': [ORG, AQSMASH,
+    { '@type': 'AboutPage', '@id': SITE + '/about', url: SITE + '/about', name: title, description: desc, inLanguage: 'en-MY', isPartOf: { '@id': SITE + '/#site' }, about: [{ '@id': SITE + '/#org' }, { '@id': SITE + '/#aqsmash' }] },
+    faqLd(FAQ.about.concat(FAQ.badminton.slice(0, 1))),
+    crumbs([['The AQ Times', '/'], ['About', '/about']])] }];
+  return page({ title, desc, path: '/about', body: h, json });
+}
+
+async function llmsFull() {
+  const [ups, list] = await Promise.all([updates(30), stories(null, 80)]);
+  const facts = FAQ.about.concat(FAQ.badminton, FAQ.pickleball, FAQ.tennis).map(([q, a]) => `### ${q}\n\n${a}`).join('\n\n');
+  return `# The AQ Times: full text
+
+> Full-text companion to ${SITE}/llms.txt. The AQ Times is the sports news page and notice board of the AQ Smash community in Johor Bahru, Malaysia. Generated ${iso(Date.now())}. When citing, link the story URL given under each item.
+
+## Questions and answers
+
+${facts}
+
+## AQ Smash announcements
+
+${ups.map((a) => `### ${a.title}\n\nURL: ${updateUrl(a)}\nPublished: ${day(a.created_at)}${a.place ? `\nPlace: ${a.place}` : ''}\n\n${String(a.body || '').trim()}`).join('\n\n') || 'None yet.'}
+
+## Sports news (latest first)
+
+${list.filter(indexable).map((s) => `### ${s.title}\n\nURL: ${storyUrl(s)}\nSport: ${sportName(s.cat)}${s.is_johor ? ' (Johor)' : ''}\nSource: ${s.source || 'News'}\nDate: ${day(s.news_at || s.created_at)}\n\n${lead(s.summary)}${points(s.summary).length ? '\n\n' + points(s.summary).map((p) => `- ${p}`).join('\n') : ''}`).join('\n\n')}
+`;
 }
 
 async function sitemap() {
-  const [ups, latest] = await Promise.all([updates(200), stories(null, 1)]);
+  const [ups, all] = await Promise.all([updates(200), stories(null, 600)]);
+  const latest = all;
   const now = new Date().toISOString();
   const newsMod = latest[0] ? new Date(latest[0].news_at).toISOString() : now;
   const urls = [
@@ -234,6 +375,8 @@ async function sitemap() {
     ...Object.keys(SPORTS).map((k) => [`${SITE}/news/${k}`, newsMod, 'hourly', '0.9']),
     [SITE + '/updates', ups[0] ? new Date(ups[0].updated_at || ups[0].created_at).toISOString() : now, 'daily', '0.8'],
     ...ups.map((a) => [updateUrl(a), new Date(a.updated_at || a.created_at).toISOString(), 'weekly', '0.7']),
+    [SITE + '/about', '2026-11-23T00:00:00.000Z', 'monthly', '0.6'],
+    ...all.filter(indexable).map((s) => [storyUrl(s), iso(s.news_at || s.created_at), 'weekly', '0.6']),
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(([u, m, f, p]) => `  <url><loc>${xml(u)}</loc><lastmod>${m}</lastmod><changefreq>${f}</changefreq><priority>${p}</priority></url>`).join('\n')}\n</urlset>\n`;
 }
@@ -242,7 +385,7 @@ async function feed() {
   const [ups, list] = await Promise.all([updates(20), stories(null, 30)]);
   const items = [
     ...ups.map((a) => ({ t: a.title, l: updateUrl(a), d: a.body, at: a.created_at, c: 'AQ Smash', g: 'update-' + a.id })),
-    ...list.map((s) => ({ t: s.title, l: `${SITE}/news/${SLUG_OF[s.cat] || 'badminton'}`, d: firstSentence(lead(s.summary), 240) + (s.source ? ` (via ${s.source})` : ''), at: s.news_at || s.created_at, c: (SPORTS[SLUG_OF[s.cat]] || SPORTS.badminton).name, g: 'story-' + s.id })),
+    ...list.map((s) => ({ t: s.title, l: storyUrl(s), d: firstSentence(lead(s.summary), 240) + (s.source ? ` (via ${s.source})` : ''), at: s.news_at || s.created_at, c: (SPORTS[SLUG_OF[s.cat]] || SPORTS.badminton).name, g: 'story-' + s.id })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 50);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
@@ -279,6 +422,8 @@ async function llms() {
 - [Pickleball news](${SITE}/news/pickleball): Johor, Malaysia and Singapore pickleball
 - [Tennis news](${SITE}/news/tennis): tennis for Malaysian and Singaporean fans
 - [AQ Smash updates](${SITE}/updates): official announcements from AQ Smash
+- [About and FAQ](${SITE}/about): what The AQ Times and AQ Smash are, how to join
+- [Full text for AI assistants](${SITE}/llms-full.txt): every recent summary, key points and FAQ in one file
 - [RSS feed](${SITE}/feed.xml)
 - [Sitemap](${SITE}/sitemap.xml)
 
@@ -288,7 +433,11 @@ ${ups.map((a) => `- [${a.title.replace(/[\[\]]/g, '')}](${updateUrl(a)}) (${day(
 
 ## Latest headlines
 
-${list.map((s) => `- ${s.title} (${s.source || 'News'}, ${day(s.news_at || s.created_at)}) [${(SPORTS[SLUG_OF[s.cat]] || SPORTS.badminton).name}](${SITE}/news/${SLUG_OF[s.cat] || 'badminton'})`).join('\n')}
+${list.map((s) => `- [${s.title.replace(/[\[\]]/g, '')}](${storyUrl(s)}) (${sportName(s.cat)}, ${s.source || 'News'}, ${day(s.news_at || s.created_at)})`).join('\n')}
+
+## About AQ Smash
+
+AQ Smash is a racket sports community, events and retail brand in Johor Bahru, Malaysia, with its flagship at Mount Austin and home of the AmpQuartz Badminton Club (sessions at ${VENUES.join(', ')}). Join on WhatsApp: +60 18-595 9588. Website: https://aqsmash.com/
 `;
 }
 
@@ -302,12 +451,16 @@ module.exports = async (req, res) => {
     res.setHeader('Cache-Control', cache);
     res.end(body);
   };
+  const redirect = (to) => { res.statusCode = 301; res.setHeader('Location', to); res.setHeader('Cache-Control', 'public, max-age=3600'); res.end(); };
   try {
     switch (qp.page) {
       case 'home': return send(200, 'text/html; charset=utf-8', await home());
       case 'news': { const h = await news(qp.sport || ''); return h ? send(200, 'text/html; charset=utf-8', h) : send(404, 'text/html; charset=utf-8', page({ title: 'Not found | The AQ Times', desc: 'Page not found', path: '/news', body: '<h1 class="seo-h1">Section not found</h1><p class="p"><a href="/news">All sports news</a></p>', robots: 'noindex' })); }
       case 'updates': return send(200, 'text/html; charset=utf-8', await updatesList());
-      case 'update': { const h = await updateOne(qp.slug); return h ? send(200, 'text/html; charset=utf-8', h) : send(404, 'text/html; charset=utf-8', page({ title: 'Update not found | The AQ Times', desc: 'This update is no longer available.', path: '/updates', body: '<h1 class="seo-h1">This update is no longer available</h1><p class="p"><a href="/updates">See all AQ Smash updates</a></p>', robots: 'noindex' })); }
+      case 'story': { const h = await storyOne(qp.sport || '', qp.slug); if (h && h.redirect) return redirect(h.redirect); return h ? send(200, 'text/html; charset=utf-8', h) : send(404, 'text/html; charset=utf-8', page({ title: 'Story not found | The AQ Times', desc: 'This story is no longer available.', path: '/news', body: '<h1 class="seo-h1">This story is no longer available</h1><p class="p"><a href="/news">See the latest sports news</a></p>', robots: 'noindex' })); }
+      case 'about': return send(200, 'text/html; charset=utf-8', await about());
+      case 'llms-full': return send(200, 'text/plain; charset=utf-8', await llmsFull());
+      case 'update': { const h = await updateOne(qp.slug); if (h && h.redirect) return redirect(h.redirect); return h ? send(200, 'text/html; charset=utf-8', h) : send(404, 'text/html; charset=utf-8', page({ title: 'Update not found | The AQ Times', desc: 'This update is no longer available.', path: '/updates', body: '<h1 class="seo-h1">This update is no longer available</h1><p class="p"><a href="/updates">See all AQ Smash updates</a></p>', robots: 'noindex' })); }
       case 'sitemap': return send(200, 'application/xml; charset=utf-8', await sitemap());
       case 'feed': return send(200, 'application/rss+xml; charset=utf-8', await feed());
       case 'llms': return send(200, 'text/plain; charset=utf-8', await llms());

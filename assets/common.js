@@ -159,3 +159,8 @@ export function parseSummary(text) {
   const paras = lines.filter((l) => !/^[•\-*]\s/.test(l));
   return { lead: paras[0] || '', more: paras.slice(1), points };
 }
+
+// Public, indexable page for a story (same slug rule as api/seo.js). In the app the click still opens the in-app sheet.
+const SPORT_SLUG = { bad: 'badminton', pickleball: 'pickleball', tennis: 'tennis' };
+export const slugify = (t) => String(t || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70) || 'update';
+export const storyPath = (s) => `/news/${SPORT_SLUG[s.cat] || 'badminton'}/${slugify(s.title)}-${s.id}`;

@@ -1,0 +1,3 @@
+-- IndexNow now also submits every story page with a real summary (/news/<sport>/<slug>-<id>),
+-- plus /about, /llms.txt and /llms-full.txt. Applied in Supabase as migration indexnow_story_pages;
+-- see 20261118_indexnow_auto_ping.sql for the cron schedule. Manual full ping: select public.indexnow_ping(true);

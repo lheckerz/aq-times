@@ -1,5 +1,5 @@
 // The AQ Times — member app
-import { sb, esc, $, BADGES, CATS, AREAS, visibleTo, fmtDateLong, sinceLabel, feedWhen, ctaHref, hasButton, coverHTML, thumbHTML, ICONS, registerSW, timeAgo, dedupeStories, parseSummary } from './common.js';
+import { sb, esc, $, BADGES, CATS, AREAS, visibleTo, fmtDateLong, sinceLabel, feedWhen, ctaHref, hasButton, coverHTML, thumbHTML, ICONS, registerSW, timeAgo, dedupeStories, parseSummary, storyPath } from './common.js';
 
 const LS = { get: (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
 
@@ -79,7 +79,7 @@ const catTag = (c) => { const t = CATS[c] || CATS.bad; return `<span class="ctag
 const srcLine = (s) => `<div class="src">${s.source ? `<span>${esc(s.source)}</span>` : ''}<span class="ago">${timeAgo(s.news_at || s.published_at || s.created_at)}</span></div>`;
 const chips = (s) => `<span class="chip-row">${catTag(s.cat)}${s.is_johor ? '<span class="jb">JOHOR</span>' : ''}${state.newStories.has(s.id) ? '<span class="new">● NEW</span>' : ''}</span>`;
 // Headlines open the in-app story page (summary + key points), never the outside site
-const headline = (s, tag = 'h3') => `<a class="h" href="#story-${esc(s.id)}" data-act="story:${esc(s.id)}"><${tag}>${esc(s.title)}</${tag}></a>`;
+const headline = (s, tag = 'h3') => `<a class="h" href="${esc(storyPath(s))}" data-act="story:${esc(s.id)}"><${tag}>${esc(s.title)}</${tag}></a>`;
 const teaser = (s) => { const l = parseSummary(s.summary).lead; return l ? `<p class="teaser">${esc(l)}</p>` : ''; };
 const img = (s) => s.image_url ? `<img src="${esc(s.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : '';
 

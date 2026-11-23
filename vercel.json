@@ -61,8 +61,20 @@
       "destination": "/api/seo?page=news"
     },
     {
+      "source": "/news/:sport/:slug",
+      "destination": "/api/seo?page=story&sport=:sport&slug=:slug"
+    },
+    {
       "source": "/news/:sport",
       "destination": "/api/seo?page=news&sport=:sport"
+    },
+    {
+      "source": "/about",
+      "destination": "/api/seo?page=about"
+    },
+    {
+      "source": "/llms-full.txt",
+      "destination": "/api/seo?page=llms-full"
     },
     {
       "source": "/updates",
