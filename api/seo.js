@@ -304,7 +304,7 @@ async function storyOne(sport, slug) {
     <h2 class="seo-h2">Summary</h2>
     ${l ? `<p class="sum">${esc(l)}</p>` + more.map((p) => `<p class="sum">${esc(p)}</p>`).join('') : '<p class="sum">A summary for this story is being prepared. Open it in the app for the latest.</p>'}
     ${pts.length ? `<h2 class="seo-h2">Key points</h2><ul class="points">${pts.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
-    ${s.source ? `<p class="credit">Summary by The AQ Times based on reporting by ${esc(s.source)}, ${esc(day(at))}.</p>` : ''}
+    ${s.source && l ? `<p class="credit">Summary by The AQ Times based on reporting by ${esc(s.source)}, ${esc(day(at))}.</p>` : ''}
     <p style="margin-top:14px"><a class="btn ghost sm" href="/#story-${esc(s.id)}">Open in The AQ Times app</a></p></article>`;
   if (related.length) h += `<h2 class="seo-h2" style="margin-top:22px">More ${esc(name.toLowerCase())} news</h2>` + related.map((x) => storyItem(x)).join('');
   h += `<p class="hint" style="margin-top:12px"><a href="/news/${sportSlug(s.cat)}">← All ${esc(name.toLowerCase())} news</a></p>`;
